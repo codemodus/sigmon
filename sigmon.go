@@ -21,13 +21,13 @@ type SignalMonitor struct {
 
 // New takes a reload and stop function and returns a set SignalMonitor.
 // When a nil arg is provided, no action will be taken during the relevant
-// signal(s).  Run must be called in order to begin monitoring.
+// signal.  Run must be called in order to begin monitoring.
 func New(reload, stop func()) (s *SignalMonitor) {
 	s = &SignalMonitor{rel: reload, stop: stop}
 	return s
 }
 
-// Set allows functions to be added or removed to increase flexibility.
+// Set allows functions to be added or removed.
 func (sm *SignalMonitor) Set(reload, stop func()) {
 	sm.mx.Lock()
 	sm.rel = reload
@@ -37,7 +37,8 @@ func (sm *SignalMonitor) Set(reload, stop func()) {
 
 // Run starts signal monitoring.  If functions have been provided, they will
 // be called during the relevant case.  The os.Signal which was called will
-// also be stored as a string within the SignalMonitor for retrieval (GetLast).
+// also be stored as a string within the SignalMonitor for retrieval
+// (GetLast()).
 func (sm *SignalMonitor) Run() {
 	if !sm.isOn {
 		if sm.off == nil {
