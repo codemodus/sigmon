@@ -49,6 +49,7 @@ func (sm *SignalMonitor) Set(reload, stop func()) {
 // a default behavior of either INT or TERM.
 func (sm *SignalMonitor) Run() {
 	if !sm.isOn {
+		sm.isOn = true
 		go func(s *SignalMonitor) {
 			h := make(chan os.Signal, 1)
 			i := make(chan os.Signal, 1)
@@ -78,7 +79,6 @@ func (sm *SignalMonitor) Run() {
 						s.stop()
 					}
 				case <-s.off:
-					s.isOn = false
 					return
 				}
 			}
@@ -90,6 +90,7 @@ func (sm *SignalMonitor) Run() {
 func (sm *SignalMonitor) Stop() {
 	if sm.isOn {
 		sm.off <- true
+		sm.isOn = false
 	}
 }
 
