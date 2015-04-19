@@ -28,16 +28,18 @@ type sigFuncs struct {
 // signal.  Run must be called in order to begin monitoring.
 func New(reload, stop func()) (s *SignalMonitor) {
 	s = &SignalMonitor{reload: reload, stop: stop,
-		off: make(chan bool), set: make(chan sigFuncs)}
+		off: make(chan bool), set: make(chan sigFuncs, 1)}
 	return s
 }
 
-// Set allows functions to be added or removed.
+// Set allows functions to be added or removed.  Only the most recently passed
+// functions will have any relevance.
 func (sm *SignalMonitor) Set(reload, stop func()) {
-	fns := sigFuncs{reload: reload, stop: stop}
-	go func() {
-		sm.set <- fns
-	}()
+	select {
+	case <-sm.set:
+	default:
+	}
+	sm.set <- sigFuncs{reload: reload, stop: stop}
 }
 
 // Run starts signal monitoring.  If functions have been provided, they will
