@@ -16,7 +16,7 @@ type SignalMonitor struct {
 	stop func()
 	sig  string
 	isOn bool
-	kill chan bool
+	off  chan bool
 }
 
 // New takes a reload and stop function and returns a set SignalMonitor.
@@ -40,7 +40,10 @@ func (sm *SignalMonitor) Set(reload, stop func()) {
 // also be stored as a string within the SignalMonitor for retrieval (GetLast).
 func (sm *SignalMonitor) Run() {
 	if !sm.isOn {
-		sm.kill = make(chan bool)
+		if sm.off == nil {
+			sm.off = make(chan bool)
+		}
+
 		go func(s *SignalMonitor) {
 			h := make(chan os.Signal, 1)
 			i := make(chan os.Signal, 1)
@@ -48,6 +51,7 @@ func (sm *SignalMonitor) Run() {
 			signal.Notify(h, syscall.SIGHUP)
 			signal.Notify(i, syscall.SIGINT)
 			signal.Notify(t, syscall.SIGTERM)
+
 			for {
 				select {
 				case <-h:
@@ -75,7 +79,7 @@ func (sm *SignalMonitor) Run() {
 						s.isOn = false
 						return
 					}
-				case <-s.kill:
+				case <-s.off:
 					s.isOn = false
 					return
 				}
@@ -86,8 +90,8 @@ func (sm *SignalMonitor) Run() {
 
 // Stop kills the goroutine which is monitoring signals.
 func (sm *SignalMonitor) Stop() {
-	if sm.isOn && sm.kill != nil {
-		sm.kill <- true
+	if sm.isOn {
+		sm.off <- true
 	}
 }
 
