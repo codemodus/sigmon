@@ -1,4 +1,4 @@
-package sigmon
+package sigmon_test
 
 import (
 	"fmt"
@@ -12,21 +12,21 @@ var (
 	reloadFunc func()
 	stopFunc   func()
 	mx         sync.Mutex
-	sm         *SignalMonitor
+	sm         *sigmon.SignalMonitor
 )
 
 func ExampleSignalMonitor() {
 	sm := sigmon.New(nil, nil)
 	sm.Run()
-
 	// Do things which cannot be affected by OS signals...
 
 	sm.Set(reloadFunc, stopFunc)
-
 	// Do things which can be affected by OS signals...
 
-	sm.Stop()
+	sm.Set(nil, nil)
+	// Do more things which cannot be affected by OS signals...
 
+	sm.Stop()
 	// OS signals will be handled normally.
 }
 
@@ -47,7 +47,7 @@ func ExampleSignalMonitor_stopFunc() {
 	if sm.GetLast() == "TERM" {
 		fmt.Println(sm.GetLast())
 		sm.Stop()
-		// Stop application rest of application.
+		// Stop rest of application.
 	}
 	// Output: TERM
 }
