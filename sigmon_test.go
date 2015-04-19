@@ -15,7 +15,7 @@ var (
 	sm         *SignalMonitor
 )
 
-func Example() {
+func ExampleSignalMonitor() {
 	sm := sigmon.New(nil, nil)
 	sm.Run()
 
@@ -30,7 +30,7 @@ func Example() {
 	// OS signals will be handled normally.
 }
 
-func Example_reloadFunc() {
+func ExampleSignalMonitor_reloadFunc() {
 	t1 := time.Now()
 	mu.Lock()
 	// Reload config
@@ -40,7 +40,7 @@ func Example_reloadFunc() {
 	// Output: HUP 156.78µs
 }
 
-func Example_stopFunc() {
+func ExampleSignalMonitor_stopFunc() {
 	// Only handle TERM signals.
 	if sm.GetLast() == "TERM" {
 		fmt.Println(sm.GetLast())
