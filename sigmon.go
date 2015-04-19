@@ -37,8 +37,9 @@ func (sm *SignalMonitor) Set(reload, stop func()) {
 
 // Run starts signal monitoring.  If functions have been provided, they will
 // be called during the relevant case.  The os.Signal which was called will
-// also be stored as a string within the SignalMonitor for retrieval
-// (GetLast()).
+// also be stored as a string within the SignalMonitor for retrieval using
+// GetLast.  Stop should be called within the provided functions and is not
+// a default behavior of either INT or TERM.
 func (sm *SignalMonitor) Run() {
 	if !sm.isOn {
 		if sm.off == nil {
@@ -68,8 +69,6 @@ func (sm *SignalMonitor) Run() {
 						s.mx.RLock()
 						s.stop()
 						s.mx.RUnlock()
-						s.isOn = false
-						return
 					}
 				case <-t:
 					s.sig = "TERM"
@@ -77,8 +76,6 @@ func (sm *SignalMonitor) Run() {
 						s.mx.RLock()
 						s.stop()
 						s.mx.RUnlock()
-						s.isOn = false
-						return
 					}
 				case <-s.off:
 					s.isOn = false

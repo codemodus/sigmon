@@ -11,7 +11,7 @@ import (
 var (
 	reloadFunc func()
 	stopFunc   func()
-	mu         sync.Mutex
+	mx         sync.Mutex
 	sm         *SignalMonitor
 )
 
@@ -31,19 +31,23 @@ func ExampleSignalMonitor() {
 }
 
 func ExampleSignalMonitor_reloadFunc() {
+	// ... within the provided reload function.
 	t1 := time.Now()
-	mu.Lock()
-	// Reload config
-	mu.Unlock()
+	mx.Lock()
+	// Reload config.
+	mx.Unlock()
 	t2 := time.Now()
 	fmt.Println(sm.GetLast(), t2.Sub(t1))
 	// Output: HUP 156.78µs
 }
 
 func ExampleSignalMonitor_stopFunc() {
-	// Only handle TERM signals.
+	// ... within the provided stop function.
+	// Handle TERM and ignore INT.
 	if sm.GetLast() == "TERM" {
 		fmt.Println(sm.GetLast())
+		sm.Stop()
+		// Stop application rest of application.
 	}
 	// Output: TERM
 }
