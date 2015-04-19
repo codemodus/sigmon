@@ -11,26 +11,26 @@ import (
 
 // SignalMonitor holds and calls funcs when called by relevant signals.
 type SignalMonitor struct {
-	mx   sync.RWMutex
-	rel  func()
-	stop func()
-	sig  string
-	isOn bool
-	off  chan bool
+	mx     sync.RWMutex
+	reload func()
+	stop   func()
+	sig    string
+	isOn   bool
+	off    chan bool
 }
 
 // New takes a reload and stop function and returns a set SignalMonitor.
 // When a nil arg is provided, no action will be taken during the relevant
 // signal.  Run must be called in order to begin monitoring.
 func New(reload, stop func()) (s *SignalMonitor) {
-	s = &SignalMonitor{rel: reload, stop: stop}
+	s = &SignalMonitor{reload: reload, stop: stop}
 	return s
 }
 
 // Set allows functions to be added or removed.
 func (sm *SignalMonitor) Set(reload, stop func()) {
 	sm.mx.Lock()
-	sm.rel = reload
+	sm.reload = reload
 	sm.stop = stop
 	sm.mx.Unlock()
 }
@@ -57,9 +57,9 @@ func (sm *SignalMonitor) Run() {
 				select {
 				case <-h:
 					s.sig = "HUP"
-					if s.rel != nil {
+					if s.reload != nil {
 						s.mx.RLock()
-						s.rel()
+						s.reload()
 						s.mx.RUnlock()
 					}
 				case <-i:
