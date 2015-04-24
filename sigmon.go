@@ -1,5 +1,4 @@
-// Package sigmon helps in managing HUP, INT, and TERM os.Signal behavior
-// within an application.
+// Package sigmon simplifies os.Signal handling.
 package sigmon
 
 import (
@@ -8,93 +7,112 @@ import (
 	"syscall"
 )
 
-// SignalMonitor holds and calls funcs when called by relevant signals.
+// {signal} constants are text representations of the handled os.Signals.
+const (
+	SIGHUP  Signal = "HUP"
+	SIGINT  Signal = "INT"
+	SIGTERM Signal = "TERM"
+	SIGUSR1 Signal = "USR1"
+	SIGUSR2 Signal = "USR2"
+)
+
+// SignalMonitor helps manage signal handling.
 type SignalMonitor struct {
-	reload func()
-	stop   func()
-	sig    string
-	isOn   bool
-	off    chan bool
-	set    chan sigFuncs
+	handler func()
+	sig     Signal
+	isOn    bool
+	off     chan bool
+	set     chan func()
 }
 
-type sigFuncs struct {
-	reload func()
-	stop   func()
-}
+// Signal wraps the string type to reduce confusion when checking Sig.
+type Signal string
 
-// New takes a reload and stop function and returns a set SignalMonitor.
-// When a nil arg is provided, no action will be taken during the relevant
-// signal.  Run must be called in order to begin monitoring.
-func New(reload, stop func()) (s *SignalMonitor) {
-	s = &SignalMonitor{reload: reload, stop: stop,
-		off: make(chan bool), set: make(chan sigFuncs, 1)}
+// New takes a function and returns a SignalMonitor.  When a nil arg is
+// provided, no action will be taken during signal handling.  Run must be
+// called in order to begin monitoring.
+func New(handler func()) (s *SignalMonitor) {
+	s = &SignalMonitor{handler: handler,
+		off: make(chan bool), set: make(chan func(), 1)}
 	return s
 }
 
-// Set allows functions to be added or removed.  Only the most recently passed
-// functions will have any relevance.
-func (sm *SignalMonitor) Set(reload, stop func()) {
+// Set allows the handler function to be added or removed.  Only the most
+// recently passed function will have any relevance.
+func (s *SignalMonitor) Set(handler func()) {
 	select {
-	case <-sm.set:
+	case <-s.set:
 	default:
 	}
-	sm.set <- sigFuncs{reload: reload, stop: stop}
+	s.set <- handler
 }
 
-// Run starts signal monitoring.  If functions have been provided, they will
-// be called during the relevant case.  The os.Signal which was called will
-// also be stored as a string within the SignalMonitor for retrieval using
-// GetLast.  Stop should be called within the provided functions and is not
-// a default behavior of either INT or TERM.
-func (sm *SignalMonitor) Run() {
-	if !sm.isOn {
-		sm.isOn = true
-		go func(s *SignalMonitor) {
+// Run starts signal monitoring.  If no function has been provided, no action
+// will be taken during signal handling.  The os.Signal which was called will
+// be stored as a string within the SignalMonitor for retrieval using GetLast.
+// Stop should be called within the provided functions and is not a default
+// behavior.
+func (s *SignalMonitor) Run() {
+	if !s.isOn {
+		s.isOn = true
+		go func(sm *SignalMonitor) {
 			h := make(chan os.Signal, 1)
 			i := make(chan os.Signal, 1)
 			t := make(chan os.Signal, 1)
+			u1 := make(chan os.Signal, 1)
+			u2 := make(chan os.Signal, 1)
 			signal.Notify(h, syscall.SIGHUP)
 			signal.Notify(i, syscall.SIGINT)
 			signal.Notify(t, syscall.SIGTERM)
+			signal.Notify(u1, syscall.SIGUSR1)
+			signal.Notify(u2, syscall.SIGUSR2)
 
 			for {
 				select {
-				case fns := <-s.set:
-					s.reload = fns.reload
-					s.stop = fns.stop
+				case <-sm.off:
+					return
+				case f := <-sm.set:
+					sm.handler = f
 				case <-h:
-					s.sig = "HUP"
-					if s.reload != nil {
-						s.reload()
+					sm.sig = SIGHUP
+					if sm.handler != nil {
+						sm.handler()
 					}
 				case <-i:
-					s.sig = "INT"
-					if s.stop != nil {
-						s.stop()
+					sm.sig = SIGINT
+					if sm.handler != nil {
+						sm.handler()
 					}
 				case <-t:
-					s.sig = "TERM"
-					if s.stop != nil {
-						s.stop()
+					sm.sig = SIGTERM
+					if sm.handler != nil {
+						sm.handler()
 					}
-				case <-s.off:
-					return
+				case <-u1:
+					sm.sig = SIGUSR1
+					if sm.handler != nil {
+						sm.handler()
+					}
+				case <-u2:
+					sm.sig = SIGUSR2
+					if sm.handler != nil {
+						sm.handler()
+					}
 				}
 			}
-		}(sm)
+		}(s)
 	}
 }
 
 // Stop kills the goroutine which is monitoring signals.
-func (sm *SignalMonitor) Stop() {
-	if sm.isOn {
-		sm.off <- true
-		sm.isOn = false
+func (s *SignalMonitor) Stop() {
+	if s.isOn {
+		s.off <- true
+		s.isOn = false
 	}
 }
 
-// GetLast returns a string of the most recently called os.Signal.
-func (sm *SignalMonitor) GetLast() string {
-	return sm.sig
+// Sig returns a string of the most recently called os.Signal.
+func (s *SignalMonitor) Sig() Signal {
+	return s.sig
 }
