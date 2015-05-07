@@ -1,9 +1,8 @@
 # sigmon
-
+--
     import "github.com/codemodus/sigmon"
 
-Package sigmon helps in managing HUP, INT, and TERM os.Signal behavior within an
-application.
+Package sigmon simplifies os.Signal handling.
 
 ## Usage
 
