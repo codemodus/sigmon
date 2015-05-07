@@ -2,18 +2,13 @@ package sigmon_test
 
 import (
 	"fmt"
-	"sync"
 	"time"
-	"log"
 
 	"github.com/codemodus/sigmon"
 )
 
 var (
-	reloadFunc func()
-	stopFunc   func()
-	mx         sync.Mutex
-	sm         *sigmon.SignalMonitor
+	sm *sigmon.SignalMonitor
 )
 
 func ExampleSignalMonitor() {
@@ -40,8 +35,7 @@ func ExampleSignalMonitor_signalHandlerFunc() {
 	case sigmon.SIGUSR1:
 		myServer.reload(true)
 	case sigmon.SIGUSR2:
-		log.Println("USR2")
-		// do nothing
+		fmt.Println("USR2")
 	}
 
 	// ... within the reload function.
@@ -50,6 +44,6 @@ func ExampleSignalMonitor_signalHandlerFunc() {
 	// Reload config.
 	myServer.Unlock()
 	t2 := time.Now()
-	fmt.Println(sm.GetLast(), t2.Sub(t1))
+	fmt.Println(sm.Sig(), t2.Sub(t1))
 	// Output: HUP 156.78µs
 }
