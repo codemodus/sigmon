@@ -8,6 +8,9 @@ import (
 	"syscall"
 )
 
+// Signal wraps the string type to reduce confusion when checking Sig.
+type Signal string
+
 // {Signal} constants are text representations of the handled os.Signals.
 const (
 	SIGHUP  Signal = "HUP"
@@ -25,9 +28,6 @@ type SignalMonitor struct {
 	off     chan bool
 	set     chan func(*SignalMonitor)
 }
-
-// Signal wraps the string type to reduce confusion when checking Sig.
-type Signal string
 
 // New takes a function and returns a SignalMonitor.  When a nil arg is
 // provided, no action will be taken during signal handling.  Run must be
@@ -51,7 +51,7 @@ func (s *SignalMonitor) Set(handler func(*SignalMonitor)) {
 
 // Run starts signal monitoring.  If no function has been provided, no action
 // will be taken during signal handling.  The os.Signal which was called will
-// be stored as a string within the SignalMonitor for retrieval using GetLast.
+// be stored as a string within the SignalMonitor for retrieval using Sig.
 // Stop should be called within the provided functions and is not a default
 // behavior.
 func (s *SignalMonitor) Run() {
