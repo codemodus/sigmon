@@ -4,10 +4,11 @@ package sigmon
 import (
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 )
 
-// {signal} constants are text representations of the handled os.Signals.
+// {Signal} constants are text representations of the handled os.Signals.
 const (
 	SIGHUP  Signal = "HUP"
 	SIGINT  Signal = "INT"
@@ -18,11 +19,11 @@ const (
 
 // SignalMonitor helps manage signal handling.
 type SignalMonitor struct {
-	handler func()
+	handler func(*SignalMonitor)
 	sig     Signal
 	isOn    bool
 	off     chan bool
-	set     chan func()
+	set     chan func(*SignalMonitor)
 }
 
 // Signal wraps the string type to reduce confusion when checking Sig.
@@ -31,15 +32,16 @@ type Signal string
 // New takes a function and returns a SignalMonitor.  When a nil arg is
 // provided, no action will be taken during signal handling.  Run must be
 // called in order to begin monitoring.
-func New(handler func()) (s *SignalMonitor) {
-	s = &SignalMonitor{handler: handler,
-		off: make(chan bool), set: make(chan func(), 1)}
+func New(handler func(*SignalMonitor)) (s *SignalMonitor) {
+	s = &SignalMonitor{handler: handler, off: make(chan bool),
+		set: make(chan func(*SignalMonitor), 1),
+	}
 	return s
 }
 
 // Set allows the handler function to be added or removed.  Only the most
 // recently passed function will have any relevance.
-func (s *SignalMonitor) Set(handler func()) {
+func (s *SignalMonitor) Set(handler func(*SignalMonitor)) {
 	select {
 	case <-s.set:
 	default:
@@ -55,6 +57,8 @@ func (s *SignalMonitor) Set(handler func()) {
 func (s *SignalMonitor) Run() {
 	if !s.isOn {
 		s.isOn = true
+		wg := &sync.WaitGroup{}
+		wg.Add(1)
 		go func(sm *SignalMonitor) {
 			h := make(chan os.Signal, 1)
 			i := make(chan os.Signal, 1)
@@ -66,6 +70,7 @@ func (s *SignalMonitor) Run() {
 			signal.Notify(t, syscall.SIGTERM)
 			signal.Notify(u1, syscall.SIGUSR1)
 			signal.Notify(u2, syscall.SIGUSR2)
+			wg.Done()
 
 			for {
 				select {
@@ -76,31 +81,32 @@ func (s *SignalMonitor) Run() {
 				case <-h:
 					sm.sig = SIGHUP
 					if sm.handler != nil {
-						sm.handler()
+						sm.handler(sm)
 					}
 				case <-i:
 					sm.sig = SIGINT
 					if sm.handler != nil {
-						sm.handler()
+						sm.handler(sm)
 					}
 				case <-t:
 					sm.sig = SIGTERM
 					if sm.handler != nil {
-						sm.handler()
+						sm.handler(sm)
 					}
 				case <-u1:
 					sm.sig = SIGUSR1
 					if sm.handler != nil {
-						sm.handler()
+						sm.handler(sm)
 					}
 				case <-u2:
 					sm.sig = SIGUSR2
 					if sm.handler != nil {
-						sm.handler()
+						sm.handler(sm)
 					}
 				}
 			}
 		}(s)
+		wg.Wait()
 	}
 }
 
