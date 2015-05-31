@@ -44,14 +44,12 @@ func main() {
 ```go
 func signalHandler(sm *sigmon.SignalMonitor) {
     switch sm.Sig() {
-        switch sm.Sig() {
-        case sigmon.SIGHUP:
-            // Reload
-        case sigmon.SIGINT, sigmon.SIGTERM:
-            // Stop
-        case sigmon.SIGUSR1, sigmon.SIGUSR2:
-            // More
-        }
+    case sigmon.SIGHUP:
+        // Reload
+    case sigmon.SIGINT, sigmon.SIGTERM:
+        // Stop
+    case sigmon.SIGUSR1, sigmon.SIGUSR2:
+        // More
     }
 }
 ```
