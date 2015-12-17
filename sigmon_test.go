@@ -38,8 +38,11 @@ func Example_signalHandlerFunc() {
 	signalHandler := func(sm *sigmon.SignalMonitor) {
 		switch sm.Sig() {
 		case sigmon.SIGHUP:
+			sm.Set(nil)
 			// Reload
+			sm.Set(signalHandler)
 		case sigmon.SIGINT, sigmon.SIGTERM:
+			sm.Set(nil)
 			// Stop
 		case sigmon.SIGUSR1, sigmon.SIGUSR2:
 			// More
