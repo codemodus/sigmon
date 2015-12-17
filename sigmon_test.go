@@ -53,24 +53,30 @@ func Example_signalHandlerFunc() {
 }
 
 func Example_funWithContext() {
-	ctxWrap := &contextWrap{c: make(chan string), prefix: "called/wrapped - "}
+	ctxWrap := &contextWrap{
+		c:      make(chan string),
+		prefix: "called/wrapped - ",
+	}
+
 	sm := sigmon.New(ctxWrap.prefixAndLowerCaseHandler)
 	sm.Run()
 
 	// Simulate system signal calls and print results.
 	callOSSiganl(syscall.SIGINT)
+
 	select {
 	case result := <-ctxWrap.c:
 		fmt.Println(result)
-	case <-time.After(1 * time.Second):
+	case <-time.After(time.Second):
 		fmt.Println("timeout waiting for signal")
 	}
 
 	callOSSiganl(syscall.SIGHUP)
+
 	select {
 	case result := <-ctxWrap.c:
 		fmt.Println(result)
-	case <-time.After(1 * time.Second):
+	case <-time.After(time.Second):
 		fmt.Println("timeout waiting for signal")
 	}
 

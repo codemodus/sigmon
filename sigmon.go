@@ -33,9 +33,12 @@ type SignalMonitor struct {
 // provided, no action will be taken during signal handling.  Run must be
 // called in order to begin monitoring.
 func New(handler func(*SignalMonitor)) (s *SignalMonitor) {
-	s = &SignalMonitor{handler: handler, off: make(chan bool),
-		set: make(chan func(*SignalMonitor), 1),
+	s = &SignalMonitor{
+		handler: handler,
+		off:     make(chan bool),
+		set:     make(chan func(*SignalMonitor), 1),
 	}
+
 	return s
 }
 
@@ -46,6 +49,7 @@ func (s *SignalMonitor) Set(handler func(*SignalMonitor)) {
 	case <-s.set:
 	default:
 	}
+
 	s.set <- handler
 }
 
@@ -57,64 +61,71 @@ func (s *SignalMonitor) Set(handler func(*SignalMonitor)) {
 func (s *SignalMonitor) Run() {
 	if !s.isOn {
 		s.isOn = true
+
 		wg := &sync.WaitGroup{}
 		wg.Add(1)
-		go func(sm *SignalMonitor) {
-			h := make(chan os.Signal, 1)
-			i := make(chan os.Signal, 1)
-			t := make(chan os.Signal, 1)
-			u1 := make(chan os.Signal, 1)
-			u2 := make(chan os.Signal, 1)
-			signal.Notify(h, syscall.SIGHUP)
-			signal.Notify(i, syscall.SIGINT)
-			signal.Notify(t, syscall.SIGTERM)
-			signal.Notify(u1, syscall.SIGUSR1)
-			signal.Notify(u2, syscall.SIGUSR2)
-			wg.Done()
 
-			for {
-				select {
-				case <-sm.off:
-					return
-				case f := <-sm.set:
-					sm.handler = f
-				case <-h:
-					sm.sig = SIGHUP
-					if sm.handler != nil {
-						sm.handler(sm)
-					}
-				case <-i:
-					sm.sig = SIGINT
-					if sm.handler != nil {
-						sm.handler(sm)
-					}
-				case <-t:
-					sm.sig = SIGTERM
-					if sm.handler != nil {
-						sm.handler(sm)
-					}
-				case <-u1:
-					sm.sig = SIGUSR1
-					if sm.handler != nil {
-						sm.handler(sm)
-					}
-				case <-u2:
-					sm.sig = SIGUSR2
-					if sm.handler != nil {
-						sm.handler(sm)
-					}
-				}
-			}
-		}(s)
+		go s.process(wg)
+
 		wg.Wait()
+	}
+}
+
+func (s *SignalMonitor) process(wg *sync.WaitGroup) {
+	h := make(chan os.Signal, 1)
+	i := make(chan os.Signal, 1)
+	t := make(chan os.Signal, 1)
+	u1 := make(chan os.Signal, 1)
+	u2 := make(chan os.Signal, 1)
+
+	signal.Notify(h, syscall.SIGHUP)
+	signal.Notify(i, syscall.SIGINT)
+	signal.Notify(t, syscall.SIGTERM)
+	signal.Notify(u1, syscall.SIGUSR1)
+	signal.Notify(u2, syscall.SIGUSR2)
+
+	wg.Done()
+
+	for {
+		select {
+		case <-s.off:
+			return
+		case f := <-s.set:
+			s.handler = f
+		case <-h:
+			s.sig = SIGHUP
+			if s.handler != nil {
+				s.handler(s)
+			}
+		case <-i:
+			s.sig = SIGINT
+			if s.handler != nil {
+				s.handler(s)
+			}
+		case <-t:
+			s.sig = SIGTERM
+			if s.handler != nil {
+				s.handler(s)
+			}
+		case <-u1:
+			s.sig = SIGUSR1
+			if s.handler != nil {
+				s.handler(s)
+			}
+		case <-u2:
+			s.sig = SIGUSR2
+			if s.handler != nil {
+				s.handler(s)
+			}
+		}
 	}
 }
 
 // Stop kills the goroutine which is monitoring signals.
 func (s *SignalMonitor) Stop() {
 	if s.isOn {
-		s.off <- true
 		s.isOn = false
+		s.off <- true
 	}
 }
 
