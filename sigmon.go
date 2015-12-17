@@ -39,7 +39,7 @@ type SignalMonitor struct {
 func New(handler func(*SignalMonitor)) (s *SignalMonitor) {
 	s = &SignalMonitor{
 		handler: handler,
-		offc:    make(chan struct{}),
+		offc:    make(chan struct{}, 1),
 		setc:    make(chan func(*SignalMonitor), 1),
 	}
 
