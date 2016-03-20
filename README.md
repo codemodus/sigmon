@@ -1,6 +1,6 @@
 # sigmon
 
-    go get "github.com/codemodus/sigmon"
+    go get github.com/codemodus/sigmon
 
 Package sigmon simplifies os.Signal handling.
 
@@ -59,11 +59,13 @@ func signalHandler(sm *sigmon.SignalMonitor) {
 ```go
 func main() {
     ctxWrap := &contextWrap{c: make(chan string), prefix: "called/wrapped - "}
+    
     sm := sigmon.New(ctxWrap.prefixAndLowerCaseHandler)
     sm.Run()
     
     // Simulate system signal calls and print results.
     callOSSiganl(syscall.SIGINT)
+    
     select {
     case result := <-ctxWrap.c:
         fmt.Println(result) // Output: "called/wrapped - int"
@@ -85,8 +87,4 @@ View the [GoDoc](http://godoc.org/github.com/codemodus/sigmon)
 
 ## Benchmarks
 
-This result is to highlight allocations.
-
-    benchmark           iter      time/iter   bytes alloc         allocs
-    ---------           ----      ---------   -----------         ------
-    BenchmarkSimple   200000    10.69 μs/op     1398 B/op   28 allocs/op
+N/A
