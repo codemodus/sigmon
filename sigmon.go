@@ -11,7 +11,7 @@ import (
 // Signal wraps the string type to reduce confusion when checking Sig.
 type Signal string
 
-// {Signal} constants are text representations of the handled os.Signals.
+// Signal constants are string representations of the handled os.Signals.
 const (
 	SIGHUP  Signal = "HUP"
 	SIGINT  Signal = "INT"
@@ -66,9 +66,9 @@ func (s *SignalMonitor) setHandler(handler func(*SignalMonitor)) {
 
 // Run starts signal monitoring.  If no function has been provided, no action
 // will be taken during signal handling.  The os.Signal which was called will
-// be stored as a string within the SignalMonitor for retrieval using Sig.
-// Stop should be called within the provided functions and is not a default
-// behavior.
+// be stored as a typed string (Signal) within the SignalMonitor for retrieval
+// using Sig. Stop should be called within the provided handler functions and
+// is not a default behavior.
 func (s *SignalMonitor) Run() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -134,7 +134,7 @@ func (s *SignalMonitor) process(wg *sync.WaitGroup) {
 	}
 }
 
-// Stop kills the goroutine which is monitoring signals.
+// Stop ends the goroutine which monitors signals.
 func (s *SignalMonitor) Stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -152,7 +152,8 @@ func (s *SignalMonitor) setSig(sig Signal) {
 	s.sig = sig
 }
 
-// Sig returns a string of the most recently called os.Signal.
+// Sig returns a typed string (Signal) representing the most recently called
+// os.Signal.
 func (s *SignalMonitor) Sig() Signal {
 	s.mu.Lock()
 	defer s.mu.Unlock()
