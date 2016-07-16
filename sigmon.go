@@ -108,29 +108,37 @@ func (s *SignalMonitor) process(wg *sync.WaitGroup) {
 	wg.Done()
 
 	for {
-		select {
-		case <-s.offc:
-			return
-		case fn := <-s.setc:
-			s.setHandler(fn)
-		default:
-			select {
-			case <-s.offc:
-				return
-			case fn := <-s.setc:
-				s.setHandler(fn)
-			case <-h:
-				s.handle(SIGHUP)
-			case <-i:
-				s.handle(SIGINT)
-			case <-t:
-				s.handle(SIGTERM)
-			case <-u1:
-				s.handle(SIGUSR1)
-			case <-u2:
-				s.handle(SIGUSR2)
-			}
-		}
+		s.monitorWithPriority(h, i, t, u1, u2)
+	}
+}
+
+func (s *SignalMonitor) monitorWithPriority(h, i, t, u1, u2 chan os.Signal) {
+	select {
+	case <-s.offc:
+		return
+	case fn := <-s.setc:
+		s.setHandler(fn)
+	default:
+		s.monitorWithoutPriority(h, i, t, u1, u2)
+	}
+}
+
+func (s *SignalMonitor) monitorWithoutPriority(h, i, t, u1, u2 chan os.Signal) {
+	select {
+	case <-s.offc:
+		return
+	case fn := <-s.setc:
+		s.setHandler(fn)
+	case <-h:
+		s.handle(SIGHUP)
+	case <-i:
+		s.handle(SIGINT)
+	case <-t:
+		s.handle(SIGTERM)
+	case <-u1:
+		s.handle(SIGUSR1)
+	case <-u2:
+		s.handle(SIGUSR2)
 	}
 }
 
