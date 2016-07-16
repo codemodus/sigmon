@@ -154,11 +154,11 @@ func callOSSiganl(s syscall.Signal) {
 		fmt.Println(err)
 	}
 	select {
-	case <-c:
-		// prevent syscall.Kill from "bleeding"
-		time.Sleep(10 * time.Microsecond)
 	case <-time.After(1 * time.Second):
 		fmt.Printf("timeout waiting for %v", s)
+	case <-c:
+		// prevent syscall.Kill from "bleeding"
+		time.Sleep(11 * time.Microsecond)
 	}
 	signal.Stop(c)
 }
