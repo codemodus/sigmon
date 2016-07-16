@@ -96,8 +96,8 @@ func (s *SignalMonitor) process(wg *sync.WaitGroup) {
 	signal.Notify(h, syscall.SIGHUP)
 	signal.Notify(i, syscall.SIGINT)
 	signal.Notify(t, syscall.SIGTERM)
-	signal.Notify(u1, syscall.SIGUSR1)
-	signal.Notify(u2, syscall.SIGUSR2)
+
+	notifyUSR(u1, u2)
 
 	defer s.closeChan(h)
 	defer s.closeChan(i)
