@@ -1,4 +1,4 @@
-// +build !windows
+// +build darwin dragonfly freebsd linux nacl netbsd openbsd solaris
 
 package sigmon
 
