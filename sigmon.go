@@ -25,12 +25,12 @@ type SignalMonitor struct {
 	hmu     sync.Mutex
 	handler func(*SignalMonitor)
 
-	mu   sync.Mutex
-	sig  Signal
-	isOn bool
+	mu  sync.Mutex
+	sig Signal
+	on  bool
 
-	offc chan struct{}
-	setc chan func(*SignalMonitor)
+	off chan struct{}
+	set chan func(*SignalMonitor)
 }
 
 // New takes a function and returns a SignalMonitor.  When a nil arg is
@@ -39,8 +39,8 @@ type SignalMonitor struct {
 func New(handler func(*SignalMonitor)) (s *SignalMonitor) {
 	s = &SignalMonitor{
 		handler: handler,
-		offc:    make(chan struct{}, 1),
-		setc:    make(chan func(*SignalMonitor), 1),
+		off:     make(chan struct{}, 1),
+		set:     make(chan func(*SignalMonitor), 1),
 	}
 
 	return s
@@ -50,11 +50,11 @@ func New(handler func(*SignalMonitor)) (s *SignalMonitor) {
 // recently passed function will have any relevance.
 func (s *SignalMonitor) Set(handler func(*SignalMonitor)) {
 	select {
-	case <-s.setc:
+	case <-s.set:
 	default:
 	}
 
-	s.setc <- handler
+	s.set <- handler
 }
 
 func (s *SignalMonitor) setHandler(handler func(*SignalMonitor)) {
@@ -73,10 +73,10 @@ func (s *SignalMonitor) Run() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.isOn {
+	if s.on {
 		return
 	}
-	s.isOn = true
+	s.on = true
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -114,9 +114,9 @@ func (s *SignalMonitor) process(wg *sync.WaitGroup) {
 
 func (s *SignalMonitor) monitorWithPriority(h, i, t, u1, u2 chan os.Signal) {
 	select {
-	case <-s.offc:
+	case <-s.off:
 		return
-	case fn := <-s.setc:
+	case fn := <-s.set:
 		s.setHandler(fn)
 	default:
 		s.monitorWithoutPriority(h, i, t, u1, u2)
@@ -125,9 +125,9 @@ func (s *SignalMonitor) monitorWithPriority(h, i, t, u1, u2 chan os.Signal) {
 
 func (s *SignalMonitor) monitorWithoutPriority(h, i, t, u1, u2 chan os.Signal) {
 	select {
-	case <-s.offc:
+	case <-s.off:
 		return
-	case fn := <-s.setc:
+	case fn := <-s.set:
 		s.setHandler(fn)
 	case <-h:
 		s.handle(SIGHUP)
@@ -147,9 +147,9 @@ func (s *SignalMonitor) Stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.isOn {
-		s.isOn = false
-		s.offc <- struct{}{}
+	if s.on {
+		s.on = false
+		s.off <- struct{}{}
 	}
 }
 
