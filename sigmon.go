@@ -29,15 +29,19 @@ type signalJunction struct {
 	sigusr2 chan os.Signal
 }
 
+func newSignalJunction() *signalJunction {
+	return &signalJunction{
+		sighup:  make(chan os.Signal, 1),
+		sigint:  make(chan os.Signal, 1),
+		sigterm: make(chan os.Signal, 1),
+		sigusr1: make(chan os.Signal, 1),
+		sigusr2: make(chan os.Signal, 1),
+	}
+}
+
 func (s *signalJunction) connect() {
 	s.Lock()
 	defer s.Unlock()
-
-	s.sighup = make(chan os.Signal, 1)
-	s.sigint = make(chan os.Signal, 1)
-	s.sigterm = make(chan os.Signal, 1)
-	s.sigusr1 = make(chan os.Signal, 1)
-	s.sigusr2 = make(chan os.Signal, 1)
 
 	signal.Notify(s.sighup, syscall.SIGHUP)
 	signal.Notify(s.sigint, syscall.SIGINT)
@@ -46,16 +50,11 @@ func (s *signalJunction) connect() {
 }
 
 func (s *signalJunction) disconnect() {
-	defer s.cutSig(s.sighup)
-	defer s.cutSig(s.sigint)
-	defer s.cutSig(s.sigterm)
-	defer s.cutSig(s.sigusr1)
-	defer s.cutSig(s.sigusr2)
-}
-
-func (s *signalJunction) cutSig(c chan os.Signal) {
-	defer close(c)
-	defer signal.Stop(c)
+	defer signal.Stop(s.sighup)
+	defer signal.Stop(s.sigint)
+	defer signal.Stop(s.sigterm)
+	defer signal.Stop(s.sigusr1)
+	defer signal.Stop(s.sigusr2)
 }
 
 type signalHandler struct {
@@ -106,7 +105,7 @@ type SignalMonitor struct {
 func New(handler func(*SignalMonitor)) (s *SignalMonitor) {
 	return &SignalMonitor{
 		off:      make(chan struct{}, 1),
-		junction: &signalJunction{},
+		junction: newSignalJunction(),
 		handler: &signalHandler{
 			handler:  handler,
 			registry: make(chan func(*SignalMonitor), 1),
