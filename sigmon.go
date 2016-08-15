@@ -136,34 +136,34 @@ func (s *SignalMonitor) Run() {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
-	go s.process(wg)
+	go s.monitor(wg)
 
 	wg.Wait()
 }
 
-func (s *SignalMonitor) process(wg *sync.WaitGroup) {
+func (s *SignalMonitor) monitor(wg *sync.WaitGroup) {
 	s.junction.connect()
 	defer s.junction.disconnect()
 
 	wg.Done()
 
 	for {
-		s.monitorWithPriority()
+		s.preScan()
 	}
 }
 
-func (s *SignalMonitor) monitorWithPriority() {
+func (s *SignalMonitor) preScan() {
 	select {
 	case <-s.off:
 		return
 	case fn := <-s.handler.registry:
 		s.handler.set(fn)
 	default:
-		s.monitorWithoutPriority()
+		s.scan()
 	}
 }
 
-func (s *SignalMonitor) monitorWithoutPriority() {
+func (s *SignalMonitor) scan() {
 	select {
 	case <-s.off:
 		return
