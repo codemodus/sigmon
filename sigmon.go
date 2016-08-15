@@ -20,10 +20,30 @@ const (
 	SIGUSR2 Signal = "USR2"
 )
 
+type signalHandler struct {
+	sync.Mutex
+	h func(*SignalMonitor)
+}
+
+func (s *signalHandler) set(handler func(*SignalMonitor)) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.h = handler
+}
+
+func (s *signalHandler) handle(sm *SignalMonitor) {
+	s.Lock()
+	defer s.Unlock()
+
+	if s.h != nil {
+		s.h(sm)
+	}
+}
+
 // SignalMonitor helps manage signal handling.
 type SignalMonitor struct {
-	hmu     sync.Mutex
-	handler func(*SignalMonitor)
+	handler *signalHandler
 
 	mu  sync.Mutex
 	sig Signal
@@ -38,7 +58,7 @@ type SignalMonitor struct {
 // called in order to begin monitoring.
 func New(handler func(*SignalMonitor)) (s *SignalMonitor) {
 	s = &SignalMonitor{
-		handler: handler,
+		handler: &signalHandler{h: handler},
 		off:     make(chan struct{}, 1),
 		set:     make(chan func(*SignalMonitor), 1),
 	}
@@ -55,13 +75,6 @@ func (s *SignalMonitor) Set(handler func(*SignalMonitor)) {
 	}
 
 	s.set <- handler
-}
-
-func (s *SignalMonitor) setHandler(handler func(*SignalMonitor)) {
-	s.hmu.Lock()
-	defer s.hmu.Unlock()
-
-	s.handler = handler
 }
 
 // Run starts signal monitoring.  If no function has been provided, no action
@@ -117,7 +130,7 @@ func (s *SignalMonitor) monitorWithPriority(h, i, t, u1, u2 chan os.Signal) {
 	case <-s.off:
 		return
 	case fn := <-s.set:
-		s.setHandler(fn)
+		s.handler.set(fn)
 	default:
 		s.monitorWithoutPriority(h, i, t, u1, u2)
 	}
@@ -128,7 +141,7 @@ func (s *SignalMonitor) monitorWithoutPriority(h, i, t, u1, u2 chan os.Signal) {
 	case <-s.off:
 		return
 	case fn := <-s.set:
-		s.setHandler(fn)
+		s.handler.set(fn)
 	case <-h:
 		s.handle(SIGHUP)
 	case <-i:
@@ -171,13 +184,7 @@ func (s *SignalMonitor) Sig() Signal {
 
 func (s *SignalMonitor) handle(sig Signal) {
 	s.setSig(sig)
-
-	s.hmu.Lock()
-	defer s.hmu.Unlock()
-
-	if s.handler != nil {
-		s.handler(s)
-	}
+	s.handler.handle(s)
 }
 
 func (s *SignalMonitor) closeChan(c chan os.Signal) {
