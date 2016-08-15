@@ -93,6 +93,7 @@ type SignalMonitor struct {
 	sync.Mutex
 	sig Signal
 	on  bool
+
 	off chan struct{}
 
 	junction *signalJunction
@@ -148,25 +149,29 @@ func (s *SignalMonitor) monitor(wg *sync.WaitGroup) {
 	wg.Done()
 
 	for {
-		s.preScan()
+		if !s.biasedScan() {
+			return
+		}
 	}
 }
 
-func (s *SignalMonitor) preScan() {
+func (s *SignalMonitor) biasedScan() (alive bool) {
 	select {
 	case <-s.off:
-		return
+		return false
 	case fn := <-s.handler.registry:
 		s.handler.set(fn)
 	default:
-		s.scan()
+		return s.scan()
 	}
+
+	return true
 }
 
-func (s *SignalMonitor) scan() {
+func (s *SignalMonitor) scan() (alive bool) {
 	select {
 	case <-s.off:
-		return
+		return false
 	case fn := <-s.handler.registry:
 		s.handler.set(fn)
 	case <-s.junction.sighup:
@@ -180,6 +185,8 @@ func (s *SignalMonitor) scan() {
 	case <-s.junction.sigusr2:
 		s.handle(SIGUSR2)
 	}
+
+	return true
 }
 
 // Stop ends the goroutine which monitors signals.
