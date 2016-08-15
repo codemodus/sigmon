@@ -63,6 +63,13 @@ type signalHandler struct {
 	registry chan func(*SignalMonitor)
 }
 
+func newSignalHandler(handler func(*SignalMonitor)) *signalHandler {
+	return &signalHandler{
+		handler:  handler,
+		registry: make(chan func(*SignalMonitor), 1),
+	}
+}
+
 func (s *signalHandler) register(handler func(*SignalMonitor)) {
 	select {
 	case <-s.registry:
@@ -107,10 +114,7 @@ func New(handler func(*SignalMonitor)) (s *SignalMonitor) {
 	return &SignalMonitor{
 		off:      make(chan struct{}, 1),
 		junction: newSignalJunction(),
-		handler: &signalHandler{
-			handler:  handler,
-			registry: make(chan func(*SignalMonitor), 1),
-		},
+		handler:  newSignalHandler(handler),
 	}
 }
 
