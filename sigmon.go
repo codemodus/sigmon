@@ -20,25 +20,72 @@ const (
 	SIGUSR2 Signal = "USR2"
 )
 
-type signalHandler struct {
+type signalJunction struct {
 	sync.Mutex
-	h   func(*SignalMonitor)
-	set chan func(*SignalMonitor)
+	sighup  chan os.Signal
+	sigint  chan os.Signal
+	sigterm chan os.Signal
+	sigusr1 chan os.Signal
+	sigusr2 chan os.Signal
 }
 
-func (s *signalHandler) setHandler(handler func(*SignalMonitor)) {
+func (s *signalJunction) connect() {
 	s.Lock()
 	defer s.Unlock()
 
-	s.h = handler
+	s.sighup = make(chan os.Signal, 1)
+	s.sigint = make(chan os.Signal, 1)
+	s.sigterm = make(chan os.Signal, 1)
+	s.sigusr1 = make(chan os.Signal, 1)
+	s.sigusr2 = make(chan os.Signal, 1)
+
+	signal.Notify(s.sighup, syscall.SIGHUP)
+	signal.Notify(s.sigint, syscall.SIGINT)
+	signal.Notify(s.sigterm, syscall.SIGTERM)
+	notifyUSR(s.sigusr1, s.sigusr2)
+}
+
+func (s *signalJunction) disconnect() {
+	defer s.cutSig(s.sighup)
+	defer s.cutSig(s.sigint)
+	defer s.cutSig(s.sigterm)
+	defer s.cutSig(s.sigusr1)
+	defer s.cutSig(s.sigusr2)
+}
+
+func (s *signalJunction) cutSig(c chan os.Signal) {
+	defer close(c)
+	defer signal.Stop(c)
+}
+
+type signalHandler struct {
+	sync.Mutex
+	handler  func(*SignalMonitor)
+	registry chan func(*SignalMonitor)
+}
+
+func (s *signalHandler) register(handler func(*SignalMonitor)) {
+	select {
+	case <-s.registry:
+	default:
+	}
+
+	s.registry <- handler
+}
+
+func (s *signalHandler) set(handler func(*SignalMonitor)) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.handler = handler
 }
 
 func (s *signalHandler) handle(sm *SignalMonitor) {
 	s.Lock()
 	defer s.Unlock()
 
-	if s.h != nil {
-		s.h(sm)
+	if s.handler != nil {
+		s.handler(sm)
 	}
 }
 
@@ -49,7 +96,8 @@ type SignalMonitor struct {
 	on  bool
 	off chan struct{}
 
-	handler *signalHandler
+	junction *signalJunction
+	handler  *signalHandler
 }
 
 // New takes a function and returns a SignalMonitor.  When a nil arg is
@@ -57,10 +105,11 @@ type SignalMonitor struct {
 // called in order to begin monitoring.
 func New(handler func(*SignalMonitor)) (s *SignalMonitor) {
 	return &SignalMonitor{
-		off: make(chan struct{}, 1),
+		off:      make(chan struct{}, 1),
+		junction: &signalJunction{},
 		handler: &signalHandler{
-			h:   handler,
-			set: make(chan func(*SignalMonitor), 1),
+			handler:  handler,
+			registry: make(chan func(*SignalMonitor), 1),
 		},
 	}
 }
@@ -68,12 +117,7 @@ func New(handler func(*SignalMonitor)) (s *SignalMonitor) {
 // Set allows the handler function to be added or removed.  Only the most
 // recently passed function will have any relevance.
 func (s *SignalMonitor) Set(handler func(*SignalMonitor)) {
-	select {
-	case <-s.handler.set:
-	default:
-	}
-
-	s.handler.set <- handler
+	s.handler.register(handler)
 }
 
 // Run starts signal monitoring.  If no function has been provided, no action
@@ -99,57 +143,42 @@ func (s *SignalMonitor) Run() {
 }
 
 func (s *SignalMonitor) process(wg *sync.WaitGroup) {
-	h := make(chan os.Signal, 1)
-	i := make(chan os.Signal, 1)
-	t := make(chan os.Signal, 1)
-	u1 := make(chan os.Signal, 1)
-	u2 := make(chan os.Signal, 1)
-
-	signal.Notify(h, syscall.SIGHUP)
-	signal.Notify(i, syscall.SIGINT)
-	signal.Notify(t, syscall.SIGTERM)
-
-	notifyUSR(u1, u2)
-
-	defer s.closeChan(h)
-	defer s.closeChan(i)
-	defer s.closeChan(t)
-	defer s.closeChan(u1)
-	defer s.closeChan(u2)
+	s.junction.connect()
+	defer s.junction.disconnect()
 
 	wg.Done()
 
 	for {
-		s.monitorWithPriority(h, i, t, u1, u2)
+		s.monitorWithPriority()
 	}
 }
 
-func (s *SignalMonitor) monitorWithPriority(h, i, t, u1, u2 chan os.Signal) {
+func (s *SignalMonitor) monitorWithPriority() {
 	select {
 	case <-s.off:
 		return
-	case fn := <-s.handler.set:
-		s.handler.setHandler(fn)
+	case fn := <-s.handler.registry:
+		s.handler.set(fn)
 	default:
-		s.monitorWithoutPriority(h, i, t, u1, u2)
+		s.monitorWithoutPriority()
 	}
 }
 
-func (s *SignalMonitor) monitorWithoutPriority(h, i, t, u1, u2 chan os.Signal) {
+func (s *SignalMonitor) monitorWithoutPriority() {
 	select {
 	case <-s.off:
 		return
-	case fn := <-s.handler.set:
-		s.handler.setHandler(fn)
-	case <-h:
+	case fn := <-s.handler.registry:
+		s.handler.set(fn)
+	case <-s.junction.sighup:
 		s.handle(SIGHUP)
-	case <-i:
+	case <-s.junction.sigint:
 		s.handle(SIGINT)
-	case <-t:
+	case <-s.junction.sigterm:
 		s.handle(SIGTERM)
-	case <-u1:
+	case <-s.junction.sigusr1:
 		s.handle(SIGUSR1)
-	case <-u2:
+	case <-s.junction.sigusr2:
 		s.handle(SIGUSR2)
 	}
 }
@@ -184,9 +213,4 @@ func (s *SignalMonitor) Sig() Signal {
 func (s *SignalMonitor) handle(sig Signal) {
 	s.setSig(sig)
 	s.handler.handle(s)
-}
-
-func (s *SignalMonitor) closeChan(c chan os.Signal) {
-	signal.Stop(c)
-	close(c)
 }
