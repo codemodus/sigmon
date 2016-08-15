@@ -12,85 +12,7 @@ import (
 	"github.com/codemodus/sigmon"
 )
 
-type contextWrap struct {
-	c      chan string
-	prefix string
-}
-
-func Example() {
-	sm := sigmon.New(nil)
-	sm.Run()
-	// Do things which cannot be affected by OS signals...
-
-	sm.Set(signalHandler)
-	// Do things which can be affected by OS signals...
-
-	sm.Set(nil)
-	// Do more things which cannot be affected by OS signals...
-
-	sm.Stop()
-	// OS signals will be handled normally.
-}
-
-func Example_signalHandlerFunc() {
-	// ...
-
-	signalHandler := func(sm *sigmon.SignalMonitor) {
-		switch sm.Sig() {
-		case sigmon.SIGHUP:
-			sm.Set(nil)
-			// Reload
-			sm.Set(signalHandler)
-		case sigmon.SIGINT, sigmon.SIGTERM:
-			sm.Set(nil)
-			// Stop
-		case sigmon.SIGUSR1, sigmon.SIGUSR2:
-			// More
-		}
-	}
-
-	sm := sigmon.New(signalHandler)
-	sm.Run()
-
-	// ...
-}
-
-func Example_funWithContext() {
-	ctxWrap := &contextWrap{
-		c:      make(chan string),
-		prefix: "called/wrapped - ",
-	}
-
-	sm := sigmon.New(ctxWrap.prefixAndLowerCaseHandler)
-	sm.Run()
-
-	// Simulate system signal calls and print results.
-	callOSSiganl(syscall.SIGINT)
-
-	select {
-	case result := <-ctxWrap.c:
-		fmt.Println(result)
-	case <-time.After(time.Second):
-		fmt.Println("timeout waiting for signal")
-	}
-
-	callOSSiganl(syscall.SIGHUP)
-
-	select {
-	case result := <-ctxWrap.c:
-		fmt.Println(result)
-	case <-time.After(time.Second):
-		fmt.Println("timeout waiting for signal")
-	}
-
-	sm.Stop()
-
-	// Output:
-	// called/wrapped - int
-	// called/wrapped - hup
-}
-
-func TestSignalIgnorance(t *testing.T) {
+func TestFuncSignalIgnorance(t *testing.T) {
 	sm := sigmon.New(nil)
 	sm.Run()
 
@@ -99,7 +21,7 @@ func TestSignalIgnorance(t *testing.T) {
 	sm.Stop()
 }
 
-func TestSignalHandling(t *testing.T) {
+func TestFuncSignalHandling(t *testing.T) {
 	cw := &contextWrap{c: make(chan string), prefix: "wrapped"}
 
 	tests := []struct {
@@ -197,12 +119,4 @@ func testCallOSSiganl(t *testing.T, s syscall.Signal) {
 		t.Fatalf("timeout waiting for %v", s)
 	}
 	signal.Stop(c)
-}
-
-func BenchmarkSimple(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		sm := sigmon.New(nil)
-		sm.Run()
-		sm.Stop()
-	}
 }
