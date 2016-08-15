@@ -22,10 +22,11 @@ const (
 
 type signalHandler struct {
 	sync.Mutex
-	h func(*SignalMonitor)
+	h   func(*SignalMonitor)
+	set chan func(*SignalMonitor)
 }
 
-func (s *signalHandler) set(handler func(*SignalMonitor)) {
+func (s *signalHandler) setHandler(handler func(*SignalMonitor)) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -43,38 +44,36 @@ func (s *signalHandler) handle(sm *SignalMonitor) {
 
 // SignalMonitor helps manage signal handling.
 type SignalMonitor struct {
-	handler *signalHandler
-
-	mu  sync.Mutex
+	sync.Mutex
 	sig Signal
 	on  bool
-
 	off chan struct{}
-	set chan func(*SignalMonitor)
+
+	handler *signalHandler
 }
 
 // New takes a function and returns a SignalMonitor.  When a nil arg is
 // provided, no action will be taken during signal handling.  Run must be
 // called in order to begin monitoring.
 func New(handler func(*SignalMonitor)) (s *SignalMonitor) {
-	s = &SignalMonitor{
-		handler: &signalHandler{h: handler},
-		off:     make(chan struct{}, 1),
-		set:     make(chan func(*SignalMonitor), 1),
+	return &SignalMonitor{
+		off: make(chan struct{}, 1),
+		handler: &signalHandler{
+			h:   handler,
+			set: make(chan func(*SignalMonitor), 1),
+		},
 	}
-
-	return s
 }
 
 // Set allows the handler function to be added or removed.  Only the most
 // recently passed function will have any relevance.
 func (s *SignalMonitor) Set(handler func(*SignalMonitor)) {
 	select {
-	case <-s.set:
+	case <-s.handler.set:
 	default:
 	}
 
-	s.set <- handler
+	s.handler.set <- handler
 }
 
 // Run starts signal monitoring.  If no function has been provided, no action
@@ -83,8 +82,8 @@ func (s *SignalMonitor) Set(handler func(*SignalMonitor)) {
 // using Sig. Stop should be called within the provided handler functions and
 // is not a default behavior.
 func (s *SignalMonitor) Run() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
 	if s.on {
 		return
@@ -129,8 +128,8 @@ func (s *SignalMonitor) monitorWithPriority(h, i, t, u1, u2 chan os.Signal) {
 	select {
 	case <-s.off:
 		return
-	case fn := <-s.set:
-		s.handler.set(fn)
+	case fn := <-s.handler.set:
+		s.handler.setHandler(fn)
 	default:
 		s.monitorWithoutPriority(h, i, t, u1, u2)
 	}
@@ -140,8 +139,8 @@ func (s *SignalMonitor) monitorWithoutPriority(h, i, t, u1, u2 chan os.Signal) {
 	select {
 	case <-s.off:
 		return
-	case fn := <-s.set:
-		s.handler.set(fn)
+	case fn := <-s.handler.set:
+		s.handler.setHandler(fn)
 	case <-h:
 		s.handle(SIGHUP)
 	case <-i:
@@ -157,8 +156,8 @@ func (s *SignalMonitor) monitorWithoutPriority(h, i, t, u1, u2 chan os.Signal) {
 
 // Stop ends the goroutine which monitors signals.
 func (s *SignalMonitor) Stop() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
 	if s.on {
 		s.on = false
@@ -167,8 +166,8 @@ func (s *SignalMonitor) Stop() {
 }
 
 func (s *SignalMonitor) setSig(sig Signal) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
 	s.sig = sig
 }
@@ -176,8 +175,8 @@ func (s *SignalMonitor) setSig(sig Signal) {
 // Sig returns a typed string (Signal) representing the most recently called
 // os.Signal.
 func (s *SignalMonitor) Sig() Signal {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
 	return s.sig
 }
