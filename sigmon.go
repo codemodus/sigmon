@@ -39,22 +39,22 @@ func newSignalJunction() *signalJunction {
 	}
 }
 
-func (s *signalJunction) connect() {
-	s.Lock()
-	defer s.Unlock()
+func (j *signalJunction) connect() {
+	j.Lock()
+	defer j.Unlock()
 
-	signal.Notify(s.sighup, syscall.SIGHUP)
-	signal.Notify(s.sigint, syscall.SIGINT)
-	signal.Notify(s.sigterm, syscall.SIGTERM)
-	notifyUSR(s.sigusr1, s.sigusr2)
+	signal.Notify(j.sighup, syscall.SIGHUP)
+	signal.Notify(j.sigint, syscall.SIGINT)
+	signal.Notify(j.sigterm, syscall.SIGTERM)
+	notifyUSR(j.sigusr1, j.sigusr2)
 }
 
-func (s *signalJunction) disconnect() {
-	defer signal.Stop(s.sighup)
-	defer signal.Stop(s.sigint)
-	defer signal.Stop(s.sigterm)
-	defer signal.Stop(s.sigusr1)
-	defer signal.Stop(s.sigusr2)
+func (j *signalJunction) disconnect() {
+	defer signal.Stop(j.sighup)
+	defer signal.Stop(j.sigint)
+	defer signal.Stop(j.sigterm)
+	defer signal.Stop(j.sigusr1)
+	defer signal.Stop(j.sigusr2)
 }
 
 type signalHandler struct {
@@ -70,28 +70,28 @@ func newSignalHandler(handler func(*SignalMonitor)) *signalHandler {
 	}
 }
 
-func (s *signalHandler) register(handler func(*SignalMonitor)) {
+func (h *signalHandler) register(handler func(*SignalMonitor)) {
 	select {
-	case <-s.registry:
+	case <-h.registry:
 	default:
 	}
 
-	s.registry <- handler
+	h.registry <- handler
 }
 
-func (s *signalHandler) set(handler func(*SignalMonitor)) {
-	s.Lock()
-	defer s.Unlock()
+func (h *signalHandler) set(handler func(*SignalMonitor)) {
+	h.Lock()
+	defer h.Unlock()
 
-	s.handler = handler
+	h.handler = handler
 }
 
-func (s *signalHandler) handle(sm *SignalMonitor) {
-	s.Lock()
-	defer s.Unlock()
+func (h *signalHandler) handle(sm *SignalMonitor) {
+	h.Lock()
+	defer h.Unlock()
 
-	if s.handler != nil {
-		s.handler(sm)
+	if h.handler != nil {
+		h.handler(sm)
 	}
 }
 
@@ -120,8 +120,8 @@ func New(handler func(*SignalMonitor)) (s *SignalMonitor) {
 
 // Set allows the handler function to be added or removed.  Only the most
 // recently passed function will have any relevance.
-func (s *SignalMonitor) Set(handler func(*SignalMonitor)) {
-	s.handler.register(handler)
+func (m *SignalMonitor) Set(handler func(*SignalMonitor)) {
+	m.handler.register(handler)
 }
 
 // Run starts signal monitoring.  If no function has been provided, no action
@@ -129,98 +129,98 @@ func (s *SignalMonitor) Set(handler func(*SignalMonitor)) {
 // be stored as a typed string (Signal) within the SignalMonitor for retrieval
 // using Sig. Stop should be called within the provided handler functions and
 // is not a default behavior.
-func (s *SignalMonitor) Run() {
-	s.Lock()
-	defer s.Unlock()
+func (m *SignalMonitor) Run() {
+	m.Lock()
+	defer m.Unlock()
 
-	if s.on {
+	if m.on {
 		return
 	}
-	s.on = true
+	m.on = true
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
-	go s.monitor(wg)
+	go m.monitor(wg)
 
 	wg.Wait()
 }
 
-func (s *SignalMonitor) monitor(wg *sync.WaitGroup) {
-	s.junction.connect()
-	defer s.junction.disconnect()
+func (m *SignalMonitor) monitor(wg *sync.WaitGroup) {
+	m.junction.connect()
+	defer m.junction.disconnect()
 
 	wg.Done()
 
 	for {
-		if !s.biasedScan() {
+		if !m.biasedScan() {
 			return
 		}
 	}
 }
 
-func (s *SignalMonitor) biasedScan() (alive bool) {
+func (m *SignalMonitor) biasedScan() (alive bool) {
 	select {
-	case <-s.off:
+	case <-m.off:
 		return false
-	case fn := <-s.handler.registry:
-		s.handler.set(fn)
+	case fn := <-m.handler.registry:
+		m.handler.set(fn)
 	default:
-		return s.scan()
+		return m.scan()
 	}
 
 	return true
 }
 
-func (s *SignalMonitor) scan() (alive bool) {
+func (m *SignalMonitor) scan() (alive bool) {
 	select {
-	case <-s.off:
+	case <-m.off:
 		return false
-	case fn := <-s.handler.registry:
-		s.handler.set(fn)
-	case <-s.junction.sighup:
-		s.handle(SIGHUP)
-	case <-s.junction.sigint:
-		s.handle(SIGINT)
-	case <-s.junction.sigterm:
-		s.handle(SIGTERM)
-	case <-s.junction.sigusr1:
-		s.handle(SIGUSR1)
-	case <-s.junction.sigusr2:
-		s.handle(SIGUSR2)
+	case fn := <-m.handler.registry:
+		m.handler.set(fn)
+	case <-m.junction.sighup:
+		m.handle(SIGHUP)
+	case <-m.junction.sigint:
+		m.handle(SIGINT)
+	case <-m.junction.sigterm:
+		m.handle(SIGTERM)
+	case <-m.junction.sigusr1:
+		m.handle(SIGUSR1)
+	case <-m.junction.sigusr2:
+		m.handle(SIGUSR2)
 	}
 
 	return true
 }
 
 // Stop ends the goroutine which monitors signals.
-func (s *SignalMonitor) Stop() {
-	s.Lock()
-	defer s.Unlock()
+func (m *SignalMonitor) Stop() {
+	m.Lock()
+	defer m.Unlock()
 
-	if s.on {
-		s.on = false
-		s.off <- struct{}{}
+	if m.on {
+		m.on = false
+		m.off <- struct{}{}
 	}
 }
 
-func (s *SignalMonitor) setSig(sig Signal) {
-	s.Lock()
-	defer s.Unlock()
+func (m *SignalMonitor) setSig(sig Signal) {
+	m.Lock()
+	defer m.Unlock()
 
-	s.sig = sig
+	m.sig = sig
 }
 
 // Sig returns a typed string (Signal) representing the most recently called
 // os.Signal.
-func (s *SignalMonitor) Sig() Signal {
-	s.Lock()
-	defer s.Unlock()
+func (m *SignalMonitor) Sig() Signal {
+	m.Lock()
+	defer m.Unlock()
 
-	return s.sig
+	return m.sig
 }
 
-func (s *SignalMonitor) handle(sig Signal) {
-	s.setSig(sig)
-	s.handler.handle(s)
+func (m *SignalMonitor) handle(sig Signal) {
+	m.setSig(sig)
+	m.handler.handle(m)
 }
