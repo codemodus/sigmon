@@ -133,6 +133,33 @@ func TestUnitSignalMonitorSet(t *testing.T) {
 	}
 }
 
+func TestUnitSignalMonitorRun(t *testing.T) {
+	c := &checkable{id: 123}
+	m := New(c.handler)
+	if m.on {
+		t.Errorf("want %t, got %t", false, m.on)
+	}
+
+	m.Run()
+	m.Run()
+	if !m.on {
+		t.Errorf("want %t, got %t", true, m.on)
+	}
+
+	s := syscall.SIGHUP
+	if err := callOSSignal(s); err != nil {
+		t.Errorf("unexpected error when calling %s: %s", s, err)
+	}
+
+	id, val, ct := c.info()
+	if id != val {
+		t.Errorf("want %d, got %d", id, val)
+	}
+	if ct > 1 {
+		t.Error("signal possibly connected multiple times")
+	}
+}
+
 func receiveOnAll(j *signalJunction) bool {
 	for i := 0; i < 5; i++ {
 		select {
