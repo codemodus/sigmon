@@ -1,6 +1,7 @@
 package sigmon
 
 import (
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -17,12 +18,25 @@ var (
 )
 
 type checkable struct {
+	sync.Mutex
 	id  int
 	val int
+	ct  int
 }
 
 func (c *checkable) handler(sm *SignalMonitor) {
+	c.Lock()
+	defer c.Unlock()
+
 	c.val = c.id
+	c.ct++
+}
+
+func (c *checkable) info() (id, val, ct int) {
+	c.Lock()
+	defer c.Unlock()
+
+	return c.id, c.val, c.ct
 }
 
 func TestUnitSignalJunctionConnect(t *testing.T) {
@@ -69,11 +83,13 @@ func TestUnitSignalHandlerRegister(t *testing.T) {
 		t.Error("should not wait forever")
 	}
 
-	if 0 != c1.val {
-		t.Errorf("want %d, got %d", 0, c1.val)
+	_, c1Val, _ := c1.info()
+	if 0 != c1Val {
+		t.Errorf("want %d, got %d", 0, c1Val)
 	}
-	if c2.id != c2.val {
-		t.Errorf("want %d, got %d", c2.id, c2.val)
+	c2ID, c2Val, _ := c2.info()
+	if c2ID != c2Val {
+		t.Errorf("want %d, got %d", c2ID, c2Val)
 	}
 }
 
@@ -84,8 +100,9 @@ func TestUnitSignalHandlerSet(t *testing.T) {
 
 	h.handler(&SignalMonitor{})
 
-	if c.id != c.val {
-		t.Errorf("want %d, got %d", c.id, c.val)
+	id, val, _ := c.info()
+	if id != val {
+		t.Errorf("want %d, got %d", id, val)
 	}
 }
 
@@ -95,8 +112,9 @@ func TestUnitSignalHandlerHandle(t *testing.T) {
 
 	h.handle(&SignalMonitor{})
 
-	if c.id != c.val {
-		t.Errorf("want %d, got %d", c.id, c.val)
+	id, val, _ := c.info()
+	if id != val {
+		t.Errorf("want %d, got %d", id, val)
 	}
 }
 
@@ -132,5 +150,14 @@ func receiveOnAll(j *signalJunction) bool {
 }
 
 func callOSSignal(s syscall.Signal) error {
-	return syscall.Kill(syscall.Getpid(), s)
+	if err := syscall.Kill(syscall.Getpid(), s); err != nil {
+		return err
+	}
+
+	// delay for requested signal propagation
+	for i := 1 << 13; i > 0; i-- {
+		syscall.Getpid()
+	}
+
+	return nil
 }
