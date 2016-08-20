@@ -133,6 +133,45 @@ func TestUnitSignalMonitorSet(t *testing.T) {
 	}
 }
 
+func TestUnitSignalMonitorScan(t *testing.T) {
+	m := New(nil)
+	ret := make(chan bool, 1)
+
+	go func() {
+		m.off <- struct{}{}
+		m.handler.registry <- func(sm *SignalMonitor) {}
+		m.junction.sighup <- syscall.SIGHUP
+		m.junction.sigint <- syscall.SIGINT
+		m.junction.sigterm <- syscall.SIGTERM
+		m.junction.sigusr1 <- syscall.SIGUSR1
+		m.junction.sigusr2 <- syscall.SIGUSR2
+	}()
+
+	ret <- m.scan()
+	select {
+	case r := <-ret:
+		want, got := false, r
+		if want != got {
+			t.Errorf("want %t, got %t", want, got)
+		}
+	default:
+		t.Error("did not receive msg")
+	}
+
+	for i := 0; i < 6; i++ {
+		ret <- m.scan()
+		select {
+		case r := <-ret:
+			want, got := true, r
+			if want != got {
+				t.Errorf("want %t, got %t", want, got)
+			}
+		default:
+			t.Error("did not receive msg")
+		}
+	}
+}
+
 func TestUnitSignalMonitorRun(t *testing.T) {
 	c := &checkable{id: 123}
 	m := New(c.handler)
@@ -168,7 +207,7 @@ func receiveOnAll(j *signalJunction) bool {
 		case <-j.sigterm:
 		case <-j.sigusr1:
 		case <-j.sigusr2:
-		case <-time.After(time.Millisecond):
+		case <-time.After(time.Microsecond * 100):
 			return false
 		}
 	}
