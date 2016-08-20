@@ -124,28 +124,6 @@ func (m *SignalMonitor) Set(handler func(*SignalMonitor)) {
 	m.handler.register(handler)
 }
 
-// Run starts signal monitoring.  If no function has been provided, no action
-// will be taken during signal handling.  The os.Signal which was called will
-// be stored as a typed string (Signal) within the SignalMonitor for retrieval
-// using Sig. Stop should be called within the provided handler functions and
-// is not a default behavior.
-func (m *SignalMonitor) Run() {
-	m.Lock()
-	defer m.Unlock()
-
-	if m.on {
-		return
-	}
-	m.on = true
-
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-
-	go m.monitor(wg)
-
-	wg.Wait()
-}
-
 func (m *SignalMonitor) monitor(wg *sync.WaitGroup) {
 	m.junction.connect()
 	defer m.junction.disconnect()
@@ -193,6 +171,28 @@ func (m *SignalMonitor) scan() (alive bool) {
 	return true
 }
 
+// Run starts signal monitoring.  If no function has been provided, no action
+// will be taken during signal handling.  The os.Signal which was called will
+// be stored as a typed string (Signal) within the SignalMonitor for retrieval
+// using Sig. Stop should be called within the provided handler functions and
+// is not a default behavior.
+func (m *SignalMonitor) Run() {
+	m.Lock()
+	defer m.Unlock()
+
+	if m.on {
+		return
+	}
+	m.on = true
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
+	go m.monitor(wg)
+
+	wg.Wait()
+}
+
 // Stop ends the goroutine which monitors signals.
 func (m *SignalMonitor) Stop() {
 	m.Lock()
@@ -204,13 +204,6 @@ func (m *SignalMonitor) Stop() {
 	}
 }
 
-func (m *SignalMonitor) setSig(sig Signal) {
-	m.Lock()
-	defer m.Unlock()
-
-	m.sig = sig
-}
-
 // Sig returns a typed string (Signal) representing the most recently called
 // os.Signal.
 func (m *SignalMonitor) Sig() Signal {
@@ -218,6 +211,13 @@ func (m *SignalMonitor) Sig() Signal {
 	defer m.Unlock()
 
 	return m.sig
+}
+
+func (m *SignalMonitor) setSig(sig Signal) {
+	m.Lock()
+	defer m.Unlock()
+
+	m.sig = sig
 }
 
 func (m *SignalMonitor) handle(sig Signal) {
