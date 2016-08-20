@@ -100,6 +100,21 @@ func TestUnitSignalHandlerHandle(t *testing.T) {
 	}
 }
 
+func TestUnitSignalMonitorSet(t *testing.T) {
+	c := &checkable{id: 123}
+	m := New(nil)
+	m.Set(c.handler)
+
+	select {
+	case fn := <-m.handler.registry:
+		if fn == nil {
+			t.Error("want function, got nil")
+		}
+	case <-time.After(time.Millisecond):
+		t.Error("should not wait forever")
+	}
+}
+
 func receiveOnAll(j *signalJunction) bool {
 	for i := 0; i < 5; i++ {
 		select {
