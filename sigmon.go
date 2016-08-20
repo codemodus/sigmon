@@ -124,32 +124,6 @@ func (m *SignalMonitor) Set(handler func(*SignalMonitor)) {
 	m.handler.register(handler)
 }
 
-func (m *SignalMonitor) monitor(wg *sync.WaitGroup) {
-	m.junction.connect()
-	defer m.junction.disconnect()
-
-	wg.Done()
-
-	for {
-		if !m.biasedScan() {
-			return
-		}
-	}
-}
-
-func (m *SignalMonitor) biasedScan() (alive bool) {
-	select {
-	case <-m.off:
-		return false
-	case fn := <-m.handler.registry:
-		m.handler.set(fn)
-	default:
-		return m.scan()
-	}
-
-	return true
-}
-
 func (m *SignalMonitor) scan() (alive bool) {
 	select {
 	case <-m.off:
@@ -169,6 +143,32 @@ func (m *SignalMonitor) scan() (alive bool) {
 	}
 
 	return true
+}
+
+func (m *SignalMonitor) biasedScan() (alive bool) {
+	select {
+	case <-m.off:
+		return false
+	case fn := <-m.handler.registry:
+		m.handler.set(fn)
+	default:
+		return m.scan()
+	}
+
+	return true
+}
+
+func (m *SignalMonitor) monitor(wg *sync.WaitGroup) {
+	m.junction.connect()
+	defer m.junction.disconnect()
+
+	wg.Done()
+
+	for {
+		if !m.biasedScan() {
+			return
+		}
+	}
 }
 
 // Run starts signal monitoring.  If no function has been provided, no action
