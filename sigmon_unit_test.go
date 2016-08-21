@@ -180,7 +180,9 @@ func TestUnitSignalMonitorBiasedScan(t *testing.T) {
 	}()
 
 	wg.Done()
-	time.Sleep(time.Millisecond)
+	for i := 1 << 21; i > 0; i-- {
+	}
+
 	m.biasedScan()
 	m.biasedScan()
 
