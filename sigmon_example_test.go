@@ -63,7 +63,7 @@ func Example_funWithContext() {
 	sm.Run()
 
 	// Simulate system signal calls and print results.
-	callOSSiganl(syscall.SIGINT)
+	_ = callOSSignal(syscall.SIGINT)
 
 	select {
 	case result := <-ctxWrap.c:
@@ -72,7 +72,7 @@ func Example_funWithContext() {
 		fmt.Println("timeout waiting for signal")
 	}
 
-	callOSSiganl(syscall.SIGHUP)
+	_ = callOSSignal(syscall.SIGHUP)
 
 	select {
 	case result := <-ctxWrap.c:

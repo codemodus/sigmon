@@ -3,9 +3,6 @@
 package sigmon_test
 
 import (
-	"fmt"
-	"os"
-	"os/signal"
 	"strings"
 	"syscall"
 	"testing"
@@ -18,7 +15,10 @@ func TestFuncSignalIgnorance(t *testing.T) {
 	sm := sigmon.New(nil)
 	sm.Run()
 
-	testCallOSSiganl(t, syscall.SIGINT)
+	s := syscall.SIGINT
+	if err := callOSSignal(s); err != nil {
+		t.Errorf("unexpected error when calling %s: %s", s, err)
+	}
 
 	sm.Stop()
 }
@@ -46,12 +46,17 @@ func TestFuncSignalHandling(t *testing.T) {
 	sm := sigmon.New(nil)
 	sm.Run()
 
-	testCallOSSiganl(t, syscall.SIGINT)
+	s := syscall.SIGINT
+	if err := callOSSignal(s); err != nil {
+		t.Errorf("unexpected error when calling %s: %s", s, err)
+	}
 
 	for _, v := range tests {
 		sm.Set(v.h)
 
-		testCallOSSiganl(t, v.send)
+		if err := callOSSignal(v.send); err != nil {
+			t.Errorf("unexpected error when calling %s: %s", v.send, err)
+		}
 
 		want := v.recv
 		select {
@@ -71,20 +76,20 @@ func signalHandler(sm *sigmon.SignalMonitor) {
 	}
 }
 
-func callOSSiganl(s syscall.Signal) {
-	c := make(chan os.Signal)
-	signal.Notify(c, s)
+func callOSSignal(s syscall.Signal) error {
 	if err := syscall.Kill(syscall.Getpid(), s); err != nil {
-		fmt.Println(err)
+		return err
 	}
-	select {
-	case <-time.After(1 * time.Second):
-		fmt.Printf("timeout waiting for %v", s)
-	case <-c:
-		// prevent syscall.Kill from "bleeding"
-		time.Sleep(11 * time.Microsecond)
+
+	// delay for requested signal propagation
+	delay()
+
+	return nil
+}
+
+func delay() {
+	for i := 1 << 21; i > 0; i-- {
 	}
-	signal.Stop(c)
 }
 
 func (cw *contextWrap) signalHandler(sm *sigmon.SignalMonitor) {
@@ -105,20 +110,4 @@ func (cw *contextWrap) prefixAndLowerCaseHandler(sm *sigmon.SignalMonitor) {
 
 func (cw *contextWrap) contextHandler(sm *sigmon.SignalMonitor) string {
 	return cw.prefix + strings.ToLower(string(sm.Sig()))
-}
-
-func testCallOSSiganl(t *testing.T, s syscall.Signal) {
-	c := make(chan os.Signal)
-	signal.Notify(c, s)
-	if err := syscall.Kill(syscall.Getpid(), s); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case <-c:
-		// prevent syscall.Kill from "bleeding"
-		time.Sleep(10 * time.Microsecond)
-	case <-time.After(1 * time.Second):
-		t.Fatalf("timeout waiting for %v", s)
-	}
-	signal.Stop(c)
 }
