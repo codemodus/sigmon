@@ -220,6 +220,17 @@ func TestUnitSignalMonitorRun(t *testing.T) {
 	}
 }
 
+func TestUnitSignalMonitorSig(t *testing.T) {
+	m := New(nil)
+	m.sig = SIGHUP
+
+	want, got := SIGHUP, m.Sig()
+	if want != got {
+		t.Errorf("want %s, got %s", want, got)
+	}
+
+}
+
 func receiveOnAll(j *signalJunction) bool {
 	for i := 0; i < 5; i++ {
 		select {
