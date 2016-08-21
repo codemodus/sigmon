@@ -138,7 +138,7 @@ func TestUnitSignalMonitorSet(t *testing.T) {
 func TestUnitSignalMonitorScan(t *testing.T) {
 	m := New(nil)
 
-	time.AfterFunc(time.Second, func() {
+	time.AfterFunc(time.Second*6, func() {
 		go func() {
 			m.off <- struct{}{}
 		}()
@@ -185,6 +185,7 @@ func TestUnitSignalMonitorBiasedScan(t *testing.T) {
 	}()
 
 	wg.Done()
+	// delay so that each channel is filled simultaneously
 	delay()
 
 	m.biasedScan()
@@ -296,6 +297,6 @@ func callOSSignal(s syscall.Signal) error {
 }
 
 func delay() {
-	for i := 1 << 21; i > 0; i-- {
+	for i := 1 << 23; i > 0; i-- {
 	}
 }
