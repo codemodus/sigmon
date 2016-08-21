@@ -147,22 +147,11 @@ func TestUnitSignalMonitorScan(t *testing.T) {
 		m.junction.sigusr2 <- syscall.SIGUSR2
 	}()
 
-	ret <- m.scan()
-	select {
-	case r := <-ret:
-		want, got := false, r
-		if want != got {
-			t.Errorf("want %t, got %t", want, got)
-		}
-	default:
-		t.Error("did not receive msg")
-	}
-
-	for i := 0; i < 6; i++ {
+	for i := 0; i < 7; i++ {
 		ret <- m.scan()
 		select {
 		case r := <-ret:
-			want, got := true, r
+			want, got := i > 0, r
 			if want != got {
 				t.Errorf("want %t, got %t", want, got)
 			}
