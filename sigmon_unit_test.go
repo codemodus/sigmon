@@ -1,20 +1,11 @@
 package sigmon
 
 import (
+	"os"
 	"sync"
 	"syscall"
 	"testing"
 	"time"
-)
-
-var (
-	sigs = []syscall.Signal{
-		syscall.SIGHUP,
-		syscall.SIGINT,
-		syscall.SIGTERM,
-		syscall.SIGUSR1,
-		syscall.SIGUSR2,
-	}
 )
 
 type checkable struct {
@@ -137,17 +128,10 @@ func TestUnitSignalMonitorScan(t *testing.T) {
 	m := New(nil)
 	ret := make(chan bool, 1)
 
-	go func() {
-		m.off <- struct{}{}
-		m.handler.registry <- func(sm *SignalMonitor) {}
-		m.junction.sighup <- syscall.SIGHUP
-		m.junction.sigint <- syscall.SIGINT
-		m.junction.sigterm <- syscall.SIGTERM
-		m.junction.sigusr1 <- syscall.SIGUSR1
-		m.junction.sigusr2 <- syscall.SIGUSR2
-	}()
+	go sendOnAll(m)
+	ct := sendOnAllCount()
 
-	for i := 0; i < 7; i++ {
+	for i := 0; i < ct; i++ {
 		ret <- m.scan()
 		select {
 		case r := <-ret:
@@ -264,24 +248,13 @@ func TestUnitSignalMonitorSig(t *testing.T) {
 
 }
 
-func receiveOnAll(j *signalJunction) bool {
-	for i := 0; i < 5; i++ {
-		select {
-		case <-j.sighup:
-		case <-j.sigint:
-		case <-j.sigterm:
-		case <-j.sigusr1:
-		case <-j.sigusr2:
-		case <-time.After(time.Microsecond * 100):
-			return false
-		}
+func callOSSignal(s syscall.Signal) error {
+	p, err := os.FindProcess(syscall.Getpid())
+	if err != nil {
+		return err
 	}
 
-	return true
-}
-
-func callOSSignal(s syscall.Signal) error {
-	if err := syscall.Kill(syscall.Getpid(), s); err != nil {
+	if err := p.Signal(s); err != nil {
 		return err
 	}
 
