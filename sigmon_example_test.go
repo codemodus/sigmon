@@ -4,8 +4,9 @@ package sigmon_test
 
 import (
 	"fmt"
+	"os"
+	"sync"
 	"syscall"
-	"time"
 
 	"github.com/codemodus/sigmon"
 )
@@ -30,60 +31,46 @@ func Example() {
 	// OS signals will be handled normally.
 }
 
-func Example_signalHandlerFunc() {
-	// ...
+func Example_passingContext() {
+	sigCtx := &signalContext{id: 123}
 
-	signalHandler := func(sm *sigmon.SignalMonitor) {
-		switch sm.Sig() {
-		case sigmon.SIGHUP:
-			sm.Set(nil)
-			// Reload
-			sm.Set(signalHandler)
-		case sigmon.SIGINT, sigmon.SIGTERM:
-			sm.Set(nil)
-			// Stop
-		case sigmon.SIGUSR1, sigmon.SIGUSR2:
-			// More
-		}
-	}
-
-	sm := sigmon.New(signalHandler)
+	// The setOutput method is ran on any signal and will store the signal text.
+	sm := sigmon.New(sigCtx.setOutput)
 	sm.Run()
 
-	// ...
-}
-
-func Example_funWithContext() {
-	ctxWrap := &contextWrap{
-		c:      make(chan string),
-		prefix: "called/wrapped - ",
-	}
-
-	sm := sigmon.New(ctxWrap.prefixAndLowerCaseHandler)
-	sm.Run()
-
-	// Simulate system signal calls and print results.
-	_ = callOSSignal(syscall.SIGINT)
-
-	select {
-	case result := <-ctxWrap.c:
-		fmt.Println(result)
-	case <-time.After(time.Second):
-		fmt.Println("timeout waiting for signal")
-	}
-
-	_ = callOSSignal(syscall.SIGHUP)
-
-	select {
-	case result := <-ctxWrap.c:
-		fmt.Println(result)
-	case <-time.After(time.Second):
-		fmt.Println("timeout waiting for signal")
+	// Simulate system signal call (windows does not support self-signalling).
+	if err := callOSSignal(syscall.SIGINT); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 	}
 
 	sm.Stop()
 
+	// The output method returns the called signal text and sigCtx.id value.
+	fmt.Println(sigCtx.output())
 	// Output:
-	// called/wrapped - int
-	// called/wrapped - hup
+	// INT 123
+}
+
+func signalHandler(sm *sigmon.SignalMonitor) {
+	// intentionally left empty
+}
+
+type signalContext struct {
+	sync.Mutex
+	id  int
+	out string
+}
+
+func (ctx *signalContext) setOutput(sm *sigmon.SignalMonitor) {
+	ctx.Lock()
+	defer ctx.Unlock()
+
+	ctx.out = fmt.Sprintf("%s %d", sm.Sig(), ctx.id)
+}
+
+func (ctx *signalContext) output() string {
+	ctx.Lock()
+	defer ctx.Unlock()
+
+	return ctx.out
 }
