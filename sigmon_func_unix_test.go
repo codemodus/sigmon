@@ -3,13 +3,47 @@
 package sigmon_test
 
 import (
-	"strings"
+	"os"
+	"os/signal"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/codemodus/sigmon"
 )
+
+var (
+	sigs = []syscall.Signal{
+		syscall.SIGHUP,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGUSR1,
+		syscall.SIGUSR2,
+	}
+)
+
+type checkable struct {
+	sync.Mutex
+	id  int
+	val int
+	ct  int
+}
+
+func (c *checkable) handler(sm *sigmon.SignalMonitor) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.val = c.id
+	c.ct++
+}
+
+func (c *checkable) info() (id, val, ct int) {
+	c.Lock()
+	defer c.Unlock()
+
+	return c.id, c.val, c.ct
+}
 
 func TestFuncSignalIgnorance(t *testing.T) {
 	sm := sigmon.New(nil)
@@ -19,30 +53,9 @@ func TestFuncSignalIgnorance(t *testing.T) {
 	if err := callOSSignal(s); err != nil {
 		t.Errorf("unexpected error when calling %s: %s", s, err)
 	}
-
-	sm.Stop()
 }
 
-func TestFuncSignalHandling(t *testing.T) {
-	cw := &contextWrap{c: make(chan string), prefix: "wrapped"}
-
-	tests := []struct {
-		h    func(*sigmon.SignalMonitor)
-		send syscall.Signal
-		recv string
-	}{
-		{cw.signalHandler, syscall.SIGHUP, string(sigmon.SIGHUP)},
-		{cw.signalHandler, syscall.SIGINT, string(sigmon.SIGINT)},
-		{cw.signalHandler, syscall.SIGTERM, string(sigmon.SIGTERM)},
-		{cw.signalHandler, syscall.SIGUSR1, string(sigmon.SIGUSR1)},
-		{cw.signalHandler, syscall.SIGUSR2, string(sigmon.SIGUSR2)},
-		{cw.prefixAndLowerCaseHandler, syscall.SIGHUP, cw.prefix + "hup"},
-		{cw.prefixAndLowerCaseHandler, syscall.SIGINT, cw.prefix + "int"},
-		{cw.prefixAndLowerCaseHandler, syscall.SIGTERM, cw.prefix + "term"},
-		{cw.prefixAndLowerCaseHandler, syscall.SIGUSR1, cw.prefix + "usr1"},
-		{cw.prefixAndLowerCaseHandler, syscall.SIGUSR2, cw.prefix + "usr2"},
-	}
-
+func TestFuncSignalConstantRetrieval(t *testing.T) {
 	sm := sigmon.New(nil)
 	sm.Run()
 
@@ -51,28 +64,56 @@ func TestFuncSignalHandling(t *testing.T) {
 		t.Errorf("unexpected error when calling %s: %s", s, err)
 	}
 
-	for _, v := range tests {
-		sm.Set(v.h)
-
-		if err := callOSSignal(v.send); err != nil {
-			t.Errorf("unexpected error when calling %s: %s", v.send, err)
-		}
-
-		want := v.recv
-		select {
-		case got := <-cw.c:
-			if got != want {
-				t.Errorf("signal was %v, want %v", got, want)
-			}
-		case <-time.After(1 * time.Second):
-			t.Errorf("timeout waiting for %v", want)
-		}
+	want, got := sigmon.SIGINT, sm.Sig()
+	if want != got {
+		t.Errorf("want %s, got %s", want, got)
 	}
 }
 
-func signalHandler(sm *sigmon.SignalMonitor) {
-	switch sm.Sig() {
-	case sigmon.SIGHUP, sigmon.SIGINT, sigmon.SIGTERM, sigmon.SIGUSR1, sigmon.SIGUSR2:
+func TestFuncSignalMonitorDoubleSetAndStop(t *testing.T) {
+	c := &checkable{id: 123}
+	sm := sigmon.New(nil)
+
+	sm.Set(c.handler)
+	sm.Set(c.handler)
+
+	sm.Run()
+	sm.Stop()
+
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGINT)
+
+	s := syscall.SIGINT
+	if err := callOSSignal(s); err != nil {
+		t.Errorf("unexpected error when calling %s: %s", s, err)
+	}
+
+	want := 0
+	_, _, got := c.info()
+	if want != got {
+		t.Errorf("want %s, got %s", want, got)
+	}
+}
+
+func TestFuncSignalHandling(t *testing.T) {
+	c := &checkable{id: 123}
+
+	sm := sigmon.New(nil)
+	sm.Run()
+	sm.Set(c.handler)
+
+	for i, s := range sigs {
+		if err := callOSSignal(s); err != nil {
+			t.Errorf("unexpected error when calling %s: %s", s, err)
+		}
+
+		time.AfterFunc(time.Second*6, func() {
+			want := i
+			_, _, got := c.info()
+			if want != got {
+				t.Errorf("want %d, got %d", want, got)
+			}
+		})
 	}
 }
 
@@ -88,26 +129,6 @@ func callOSSignal(s syscall.Signal) error {
 }
 
 func delay() {
-	for i := 1 << 21; i > 0; i-- {
+	for i := 1 << 23; i > 0; i-- {
 	}
-}
-
-func (cw *contextWrap) signalHandler(sm *sigmon.SignalMonitor) {
-	s := sm.Sig()
-	switch s {
-	case sigmon.SIGHUP, sigmon.SIGINT, sigmon.SIGTERM, sigmon.SIGUSR1, sigmon.SIGUSR2:
-		cw.c <- string(s)
-	}
-}
-
-func (cw *contextWrap) prefixAndLowerCaseHandler(sm *sigmon.SignalMonitor) {
-	switch sm.Sig() {
-	case sigmon.SIGHUP, sigmon.SIGINT, sigmon.SIGTERM, sigmon.SIGUSR1, sigmon.SIGUSR2:
-		g := cw.contextHandler(sm)
-		cw.c <- g
-	}
-}
-
-func (cw *contextWrap) contextHandler(sm *sigmon.SignalMonitor) string {
-	return cw.prefix + strings.ToLower(string(sm.Sig()))
 }
