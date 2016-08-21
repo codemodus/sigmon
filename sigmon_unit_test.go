@@ -152,7 +152,7 @@ func TestUnitSignalMonitorBiasedScan(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		wg.Wait()
-		m.junction.sighup <- syscall.SIGHUP
+		m.junction.sigint <- syscall.SIGINT
 	}()
 	go func() {
 		wg.Wait()
@@ -171,7 +171,7 @@ func TestUnitSignalMonitorBiasedScan(t *testing.T) {
 	m.biasedScan()
 
 	select {
-	case <-m.junction.sighup:
+	case <-m.junction.sigint:
 	default:
 		t.Error("bias may be wrong")
 	}
@@ -190,7 +190,7 @@ func TestUnitSignalMonitorRun(t *testing.T) {
 		t.Errorf("want %t, got %t", true, m.on)
 	}
 
-	s := syscall.SIGHUP
+	s := syscall.SIGINT
 	if err := callOSSignal(s); err != nil {
 		t.Errorf("unexpected error when calling %s: %s", s, err)
 	}
@@ -211,7 +211,7 @@ func TestUnitSignalMonitorStop(t *testing.T) {
 	m := New(c.handler)
 	m.Run()
 
-	s := syscall.SIGHUP
+	s := syscall.SIGINT
 	if err := callOSSignal(s); err != nil {
 		t.Errorf("unexpected error when calling %s: %s", s, err)
 	}
@@ -239,9 +239,9 @@ func TestUnitSignalMonitorStop(t *testing.T) {
 
 func TestUnitSignalMonitorSig(t *testing.T) {
 	m := New(nil)
-	m.sig = SIGHUP
+	m.sig = SIGINT
 
-	want, got := SIGHUP, m.Sig()
+	want, got := SIGINT, m.Sig()
 	if want != got {
 		t.Errorf("want %s, got %s", want, got)
 	}
