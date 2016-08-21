@@ -7,8 +7,6 @@ import (
 
 var (
 	sigs = []syscall.Signal{
-		syscall.SIGHUP,
-		syscall.SIGINT,
 		syscall.SIGTERM,
 	}
 )
@@ -16,20 +14,16 @@ var (
 func sendOnAll(m *SignalMonitor) {
 	m.off <- struct{}{}
 	m.handler.registry <- func(sm *SignalMonitor) {}
-	m.junction.sighup <- syscall.SIGHUP
-	m.junction.sigint <- syscall.SIGINT
 	m.junction.sigterm <- syscall.SIGTERM
 }
 
 func sendOnAllCount() int {
-	return 5
+	return 3
 }
 
 func receiveOnAll(j *signalJunction) bool {
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 1; i++ {
 		select {
-		case <-j.sighup:
-		case <-j.sigint:
 		case <-j.sigterm:
 		case <-time.After(time.Microsecond * 100):
 			return false
