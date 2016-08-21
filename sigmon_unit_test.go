@@ -211,12 +211,45 @@ func TestUnitSignalMonitorRun(t *testing.T) {
 		t.Errorf("unexpected error when calling %s: %s", s, err)
 	}
 
+	m.Stop()
+
 	id, val, ct := c.info()
 	if id != val {
 		t.Errorf("want %d, got %d", id, val)
 	}
 	if ct > 1 {
 		t.Error("signal possibly connected multiple times")
+	}
+}
+
+func TestUnitSignalMonitorStop(t *testing.T) {
+	c := &checkable{id: 123}
+	m := New(c.handler)
+	m.Run()
+
+	s := syscall.SIGHUP
+	if err := callOSSignal(s); err != nil {
+		t.Errorf("unexpected error when calling %s: %s", s, err)
+	}
+
+	m.Stop()
+
+	if m.on {
+		t.Errorf("want %t, got %t", false, m.on)
+	}
+
+	mx := New(nil)
+	mx.Run()
+
+	if err := callOSSignal(s); err != nil {
+		t.Errorf("unexpected error when calling %s: %s", s, err)
+	}
+
+	mx.Stop()
+
+	_, _, ct := c.info()
+	if 1 != ct {
+		t.Errorf("want %d, got %d", 1, ct)
 	}
 }
 
