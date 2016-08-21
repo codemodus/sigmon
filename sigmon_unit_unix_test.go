@@ -137,30 +137,33 @@ func TestUnitSignalMonitorSet(t *testing.T) {
 
 func TestUnitSignalMonitorScan(t *testing.T) {
 	m := New(nil)
-	ret := make(chan bool, 1)
 
-	go func() {
-		m.off <- struct{}{}
-		m.handler.registry <- func(sm *SignalMonitor) {}
-		m.junction.sighup <- syscall.SIGHUP
-		m.junction.sigint <- syscall.SIGINT
-		m.junction.sigterm <- syscall.SIGTERM
-		m.junction.sigusr1 <- syscall.SIGUSR1
-		m.junction.sigusr2 <- syscall.SIGUSR2
-	}()
+	time.AfterFunc(time.Second, func() {
+		go func() {
+			m.off <- struct{}{}
+		}()
 
-	for i := 0; i < 7; i++ {
-		ret <- m.scan()
-		select {
-		case r := <-ret:
-			want, got := i > 0, r
+		want, got := false, m.scan()
+		if want != got {
+			t.Errorf("want %t, got %t", want, got)
+		}
+
+		go func() {
+			m.handler.registry <- func(sm *SignalMonitor) {}
+			m.junction.sighup <- syscall.SIGHUP
+			m.junction.sigint <- syscall.SIGINT
+			m.junction.sigterm <- syscall.SIGTERM
+			m.junction.sigusr1 <- syscall.SIGUSR1
+			m.junction.sigusr2 <- syscall.SIGUSR2
+		}()
+
+		for i := 0; i < 6; i++ {
+			want, got := true, m.scan()
 			if want != got {
 				t.Errorf("want %t, got %t", want, got)
 			}
-		default:
-			t.Error("did not receive msg")
 		}
-	}
+	})
 }
 
 func TestUnitSignalMonitorBiasedScan(t *testing.T) {
@@ -182,8 +185,7 @@ func TestUnitSignalMonitorBiasedScan(t *testing.T) {
 	}()
 
 	wg.Done()
-	for i := 1 << 21; i > 0; i-- {
-	}
+	delay()
 
 	m.biasedScan()
 	m.biasedScan()
@@ -288,9 +290,12 @@ func callOSSignal(s syscall.Signal) error {
 	}
 
 	// delay for requested signal propagation
-	for i := 1 << 13; i > 0; i-- {
-		syscall.Getpid()
-	}
+	delay()
 
 	return nil
+}
+
+func delay() {
+	for i := 1 << 21; i > 0; i-- {
+	}
 }
