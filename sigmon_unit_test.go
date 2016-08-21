@@ -161,6 +161,36 @@ func TestUnitSignalMonitorScan(t *testing.T) {
 	}
 }
 
+func TestUnitSignalMonitorBiasedScan(t *testing.T) {
+	m := New(nil)
+	wg := sync.WaitGroup{}
+
+	wg.Add(1)
+	go func() {
+		wg.Wait()
+		m.junction.sighup <- syscall.SIGHUP
+	}()
+	go func() {
+		wg.Wait()
+		m.off <- struct{}{}
+	}()
+	go func() {
+		wg.Wait()
+		m.handler.registry <- func(sm *SignalMonitor) {}
+	}()
+
+	wg.Done()
+	time.Sleep(time.Millisecond)
+	m.biasedScan()
+	m.biasedScan()
+
+	select {
+	case <-m.junction.sighup:
+	default:
+		t.Error("bias may be wrong")
+	}
+}
+
 func TestUnitSignalMonitorRun(t *testing.T) {
 	c := &checkable{id: 123}
 	m := New(c.handler)
