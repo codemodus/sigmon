@@ -58,28 +58,34 @@ func signalHandler(sm *sigmon.SignalMonitor) {
 
 ```go
 func main() {
-    ctxWrap := &contextWrap{c: make(chan string), prefix: "called/wrapped - "}
-    
-    sm := sigmon.New(ctxWrap.prefixAndLowerCaseHandler)
+    sigCtx := &signalContext{id: 123}
+
+    // The setOutput method is ran on any signal and will store the signal text.
+    sm := sigmon.New(sigCtx.setOutput)
     sm.Run()
-    
-    // Simulate system signal calls and print results.
-    callOSSiganl(syscall.SIGINT)
-    
-    select {
-    case result := <-ctxWrap.c:
-        fmt.Println(result) // Output: "called/wrapped - int"
-    case <-time.After(1 * time.Second):
-        fmt.Println("timeout waiting for signal")
+
+    // Simulate system signal call (windows does not support self-signaling).
+    if err := callOSSignal(syscall.SIGINT); err != nil {
+        fmt.Fprintln(os.Stderr, err)
     }
-    
+
     sm.Stop()
+
+    // The output method returns the called signal text and sigCtx.id value.
+    fmt.Println(sigCtx.output()) // Outputs: "INT 123"
 }
 ```
 
 ## More Info
 
-N/A
+### Windows Compatibility
+
+sigmon will run on Windows systems without error. In order for this to be, 
+notifications of USR1 and USR2 signals are detented as they are not supported 
+whatsoever in Windows. All tests work on \*nix systems, but are not run on 
+Windows. It is up to the user to assess whether their application is receiving 
+INT, TERM, and, HUP signals properly along with what that may mean for the 
+design of the affected system. 
 
 ## Documentation
 
