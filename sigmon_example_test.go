@@ -34,18 +34,18 @@ func Example() {
 func Example_passingContext() {
 	sigCtx := &signalContext{id: 123}
 
-	// The setOutput method is ran on any signal and will store the signal text.
+	// The setOutput method stores the signal type when any signal is handled.
 	sm := sigmon.New(sigCtx.setOutput)
 	sm.Run()
 
-	// Simulate system signal call (windows does not support self-signalling).
+	// Simulate a system signal (windows does not support self-signaling).
 	if err := callOSSignal(syscall.SIGINT); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}
 
 	sm.Stop()
 
-	// The output method returns the called signal text and sigCtx.id value.
+	// The output method returns the called signal type and sigCtx.id value.
 	fmt.Println(sigCtx.output())
 	// Output:
 	// INT 123
