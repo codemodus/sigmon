@@ -11,7 +11,7 @@ import (
 // Signal wraps the string type to reduce confusion when checking Sig.
 type Signal string
 
-// Signal constants are string representations of the handled os.Signals.
+// Signal constants are string representations of handled os.Signals.
 const (
 	SIGHUP  Signal = "HUP"
 	SIGINT  Signal = "INT"
@@ -20,6 +20,7 @@ const (
 	SIGUSR2 Signal = "USR2"
 )
 
+// signalJunction is a support type for signalMonitor.
 type signalJunction struct {
 	sync.Mutex
 	sighup  chan os.Signal
@@ -46,6 +47,7 @@ func (j *signalJunction) connect() {
 	signal.Notify(j.sighup, syscall.SIGHUP)
 	signal.Notify(j.sigint, syscall.SIGINT)
 	signal.Notify(j.sigterm, syscall.SIGTERM)
+	// split for unix/windows
 	notifyUSR(j.sigusr1, j.sigusr2)
 }
 
@@ -57,6 +59,7 @@ func (j *signalJunction) disconnect() {
 	defer signal.Stop(j.sigusr2)
 }
 
+// signalHandler is a support type for signalMonitor.
 type signalHandler struct {
 	sync.Mutex
 	handler  func(*SignalMonitor)
@@ -107,9 +110,9 @@ type SignalMonitor struct {
 	handler  *signalHandler
 }
 
-// New takes a function and returns a SignalMonitor.  When a nil arg is
-// provided, no action will be taken during signal handling.  Run must be
-// called in order to begin monitoring.
+// New takes a function and returns a SignalMonitor. When a nil arg is
+// provided, no action will be taken during signal handling. Run must be
+// called in order to begin handling.
 func New(handler func(*SignalMonitor)) (s *SignalMonitor) {
 	return &SignalMonitor{
 		off:      make(chan struct{}, 1),
@@ -118,8 +121,9 @@ func New(handler func(*SignalMonitor)) (s *SignalMonitor) {
 	}
 }
 
-// Set allows the handler function to be added or removed.  Only the most
-// recently passed function will have any relevance.
+// Set allows the handler function to be added or removed. If no function has
+// been provided, no action will be taken during signal handling. Only the most
+// recently passed function holds any effect.
 func (m *SignalMonitor) Set(handler func(*SignalMonitor)) {
 	m.handler.register(handler)
 }
@@ -171,11 +175,7 @@ func (m *SignalMonitor) monitor(wg *sync.WaitGroup) {
 	}
 }
 
-// Run starts signal monitoring.  If no function has been provided, no action
-// will be taken during signal handling.  The os.Signal which was called will
-// be stored as a typed string (Signal) within the SignalMonitor for retrieval
-// using Sig. Stop should be called within the provided handler functions and
-// is not a default behavior.
+// Run starts signal handling.
 func (m *SignalMonitor) Run() {
 	m.Lock()
 	defer m.Unlock()
@@ -193,7 +193,7 @@ func (m *SignalMonitor) Run() {
 	wg.Wait()
 }
 
-// Stop ends the goroutine which monitors signals.
+// Stop discontinues all os.Signal handling.
 func (m *SignalMonitor) Stop() {
 	m.Lock()
 	defer m.Unlock()
