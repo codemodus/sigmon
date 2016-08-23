@@ -64,9 +64,9 @@ func TestFuncSignalConstantRetrieval(t *testing.T) {
 		t.Errorf("unexpected error when calling %s: %s", s, err)
 	}
 
-	want, got := sigmon.SIGINT, sm.Sig()
-	if want != got {
-		t.Errorf("want %s, got %s", want, got)
+	got, want := sm.Sig(), sigmon.SIGINT
+	if got != want {
+		t.Errorf("got %s, want %s", got, want)
 	}
 }
 
@@ -88,10 +88,10 @@ func TestFuncSignalMonitorDoubleSetAndStop(t *testing.T) {
 		t.Errorf("unexpected error when calling %s: %s", s, err)
 	}
 
-	want := 0
 	_, _, got := c.info()
-	if want != got {
-		t.Errorf("want %s, got %s", want, got)
+	want := 0
+	if got != want {
+		t.Errorf("got %s, want %s", got, want)
 	}
 }
 
@@ -108,10 +108,10 @@ func TestFuncSignalHandling(t *testing.T) {
 		}
 
 		time.AfterFunc(time.Second*6, func() {
-			want := i
 			_, _, got := c.info()
-			if want != got {
-				t.Errorf("want %d, got %d", want, got)
+			want := i
+			if got != want {
+				t.Errorf("got %d, want %d", got, want)
 			}
 		})
 	}

@@ -77,7 +77,7 @@ func TestUnitSignalHandlerRegister(t *testing.T) {
 	select {
 	case fn := <-h.registry:
 		if fn == nil {
-			t.Error("want function, got nil")
+			t.Error("got nil, want not nil")
 		}
 
 		fn(&SignalMonitor{})
@@ -86,12 +86,12 @@ func TestUnitSignalHandlerRegister(t *testing.T) {
 	}
 
 	_, c1Val, _ := c1.info()
-	if 0 != c1Val {
-		t.Errorf("want %d, got %d", 0, c1Val)
+	if c1Val != 0 {
+		t.Errorf("got %d, want %d", c1Val, 0)
 	}
 	c2ID, c2Val, _ := c2.info()
-	if c2ID != c2Val {
-		t.Errorf("want %d, got %d", c2ID, c2Val)
+	if c2Val != c2ID {
+		t.Errorf("got %d, want %d", c2Val, c2ID)
 	}
 }
 
@@ -103,8 +103,8 @@ func TestUnitSignalHandlerSet(t *testing.T) {
 	h.handler(&SignalMonitor{})
 
 	id, val, _ := c.info()
-	if id != val {
-		t.Errorf("want %d, got %d", id, val)
+	if val != id {
+		t.Errorf("got %d, want %d", val, id)
 	}
 }
 
@@ -115,8 +115,8 @@ func TestUnitSignalHandlerHandle(t *testing.T) {
 	h.handle(&SignalMonitor{})
 
 	id, val, _ := c.info()
-	if id != val {
-		t.Errorf("want %d, got %d", id, val)
+	if val != id {
+		t.Errorf("got %d, want %d", val, id)
 	}
 }
 
@@ -128,7 +128,7 @@ func TestUnitSignalMonitorSet(t *testing.T) {
 	select {
 	case fn := <-m.handler.registry:
 		if fn == nil {
-			t.Error("want function, got nil")
+			t.Error("got nil, want not nil")
 		}
 	case <-time.After(time.Millisecond):
 		t.Error("should not wait forever")
@@ -143,9 +143,9 @@ func TestUnitSignalMonitorScan(t *testing.T) {
 			m.off <- struct{}{}
 		}()
 
-		want, got := false, m.scan()
-		if want != got {
-			t.Errorf("want %t, got %t", want, got)
+		got, want := m.scan(), false
+		if got != want {
+			t.Errorf("got %t, want %t", got, want)
 		}
 
 		go func() {
@@ -158,9 +158,9 @@ func TestUnitSignalMonitorScan(t *testing.T) {
 		}()
 
 		for i := 0; i < 6; i++ {
-			want, got := true, m.scan()
-			if want != got {
-				t.Errorf("want %t, got %t", want, got)
+			got, want := m.scan(), true
+			if got != want {
+				t.Errorf("got %t, want %t", got, want)
 			}
 		}
 	})
@@ -202,13 +202,13 @@ func TestUnitSignalMonitorRun(t *testing.T) {
 	c := &checkable{id: 123}
 	m := New(c.handler)
 	if m.on {
-		t.Errorf("want %t, got %t", false, m.on)
+		t.Errorf("got %t, want %t", m.on, false)
 	}
 
 	m.Run()
 	m.Run()
 	if !m.on {
-		t.Errorf("want %t, got %t", true, m.on)
+		t.Errorf("got %t, want %t", m.on, true)
 	}
 
 	s := syscall.SIGHUP
@@ -219,8 +219,8 @@ func TestUnitSignalMonitorRun(t *testing.T) {
 	m.Stop()
 
 	id, val, ct := c.info()
-	if id != val {
-		t.Errorf("want %d, got %d", id, val)
+	if val != id {
+		t.Errorf("got %d, want %d", val, id)
 	}
 	if ct > 1 {
 		t.Error("signal possibly connected multiple times")
@@ -240,7 +240,7 @@ func TestUnitSignalMonitorStop(t *testing.T) {
 	m.Stop()
 
 	if m.on {
-		t.Errorf("want %t, got %t", false, m.on)
+		t.Errorf("got %t, want %t", m.on, false)
 	}
 
 	mx := New(nil)
@@ -253,8 +253,8 @@ func TestUnitSignalMonitorStop(t *testing.T) {
 	mx.Stop()
 
 	_, _, ct := c.info()
-	if 1 != ct {
-		t.Errorf("want %d, got %d", 1, ct)
+	if ct != 1 {
+		t.Errorf("got %d, want %d", ct, 1)
 	}
 }
 
@@ -262,9 +262,9 @@ func TestUnitSignalMonitorSig(t *testing.T) {
 	m := New(nil)
 	m.sig = SIGHUP
 
-	want, got := SIGHUP, m.Sig()
-	if want != got {
-		t.Errorf("want %s, got %s", want, got)
+	got, want := m.Sig(), SIGHUP
+	if got != want {
+		t.Errorf("got %s, want %s", got, want)
 	}
 
 }
