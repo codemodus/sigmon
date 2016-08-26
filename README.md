@@ -81,11 +81,11 @@ func main() {
 ### Windows Compatibility
 
 sigmon will run on Windows systems without error. In order for this to be, 
-notifications of USR1 and USR2 signals are detented as they are not supported 
-whatsoever in Windows. All tests work on \*nix systems, but are not run on 
-Windows. It is up to the user to assess whether their application is receiving 
-INT, TERM, and, HUP signals properly along with what that may mean for the 
-design of the affected system. 
+notifications of USR1 and USR2 signals are not wired up as they are not 
+supported whatsoever in Windows. All tests work on \*nix systems, but are not 
+run on Windows. It is up to the user to assess whether their application is 
+receiving INT, TERM, and, HUP signals properly along with what that may mean 
+for the design of the affected system. 
 
 ## Documentation
 
