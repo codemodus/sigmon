@@ -23,6 +23,8 @@ const (
 // signalJunction is a support type for signalMonitor.
 type signalJunction struct {
 	sync.Mutex
+	isConnected bool
+
 	sighup  chan os.Signal
 	sigint  chan os.Signal
 	sigterm chan os.Signal
@@ -44,14 +46,29 @@ func (j *signalJunction) connect() {
 	j.Lock()
 	defer j.Unlock()
 
+	if j.isConnected {
+		return
+	}
+
 	signal.Notify(j.sighup, syscall.SIGHUP)
 	signal.Notify(j.sigint, syscall.SIGINT)
 	signal.Notify(j.sigterm, syscall.SIGTERM)
 	// split for unix/windows
 	notifyUSR(j.sigusr1, j.sigusr2)
+
+	j.isConnected = true
 }
 
 func (j *signalJunction) disconnect() {
+	j.Lock()
+	defer j.Unlock()
+
+	if !j.isConnected {
+		return
+	}
+
+	j.isConnected = false
+
 	defer signal.Stop(j.sighup)
 	defer signal.Stop(j.sigint)
 	defer signal.Stop(j.sigterm)
@@ -62,7 +79,8 @@ func (j *signalJunction) disconnect() {
 // signalHandler is a support type for signalMonitor.
 type signalHandler struct {
 	sync.Mutex
-	handler  func(*SignalMonitor)
+	handler func(*SignalMonitor)
+
 	registry chan func(*SignalMonitor)
 }
 

@@ -44,6 +44,7 @@ func (c *checkable) info() (id, val, ct int) {
 func TestUnitSignalJunctionConnect(t *testing.T) {
 	j := newSignalJunction()
 	j.connect()
+	j.connect()
 
 	for _, s := range sigs {
 		if err := callOSSignal(s); err != nil {
@@ -59,6 +60,7 @@ func TestUnitSignalJunctionConnect(t *testing.T) {
 func TestUnitSignalJunctionDisconnect(t *testing.T) {
 	j := newSignalJunction()
 	j.connect()
+	j.disconnect()
 	j.disconnect()
 
 	if receiveOnAll(j) {
