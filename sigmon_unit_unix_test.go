@@ -135,6 +135,40 @@ func TestUnitSignalMonitorSet(t *testing.T) {
 	}
 }
 
+func TestUnitSignalMonitorPreScan(t *testing.T) {
+	m := New(nil)
+
+	m.handler.registry = make(chan func(*SignalMonitor), 1)
+	m.handler.registry <- func(sm *SignalMonitor) {}
+
+	got := m.preScan()
+	want := true
+	if got != want {
+		t.Errorf("got %t, want %t", got, want)
+	}
+
+	select {
+	case <-m.handler.registry:
+		t.Error("failed to read from channel")
+	default:
+	}
+
+	m.off = make(chan struct{}, 1)
+	m.off <- struct{}{}
+
+	got = m.preScan()
+	want = false
+	if got != want {
+		t.Errorf("got %t, want %t", got, want)
+	}
+
+	got = m.preScan()
+	want = true
+	if got != want {
+		t.Errorf("got %t, want %t", got, want)
+	}
+}
+
 func TestUnitSignalMonitorScan(t *testing.T) {
 	m := New(nil)
 
@@ -166,35 +200,23 @@ func TestUnitSignalMonitorScan(t *testing.T) {
 	})
 }
 
-func TestUnitSignalMonitorBiasedScan(t *testing.T) {
+func TestUnitSignalMonitorMonitor(t *testing.T) {
 	m := New(nil)
-	wg := sync.WaitGroup{}
 
+	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	go func() {
-		wg.Wait()
-		m.junction.sighup <- syscall.SIGHUP
-	}()
-	go func() {
-		wg.Wait()
+
+	go m.monitor(wg)
+
+	m.handler.registry <- func(sm *SignalMonitor) {
 		m.off <- struct{}{}
-	}()
-	go func() {
-		wg.Wait()
-		m.handler.registry <- func(sm *SignalMonitor) {}
-	}()
-
-	wg.Done()
-	// delay so that each channel is filled simultaneously
-	delay()
-
-	m.biasedScan()
-	m.biasedScan()
+	}
+	m.junction.sighup <- syscall.SIGHUP
 
 	select {
 	case <-m.junction.sighup:
 	default:
-		t.Error("bias may be wrong")
+		t.Error("signal should not have been handled")
 	}
 }
 
@@ -291,12 +313,8 @@ func callOSSignal(s syscall.Signal) error {
 	}
 
 	// delay for requested signal propagation
-	delay()
-
-	return nil
-}
-
-func delay() {
 	for i := 1 << 23; i > 0; i-- {
 	}
+
+	return nil
 }
