@@ -225,14 +225,14 @@ func TestUnitSignalMonitorMonitor(t *testing.T) {
 func TestUnitSignalMonitorStart(t *testing.T) {
 	c := &checkable{id: 123}
 	m := New(c.handler)
-	if m.on {
-		t.Errorf("got %t, want %t", m.on, false)
+	if m.isOn {
+		t.Errorf("got %t, want %t", m.isOn, false)
 	}
 
 	m.Start()
 	m.Start()
-	if !m.on {
-		t.Errorf("got %t, want %t", m.on, true)
+	if !m.isOn {
+		t.Errorf("got %t, want %t", m.isOn, true)
 	}
 
 	s := syscall.SIGHUP
@@ -263,8 +263,8 @@ func TestUnitSignalMonitorStop(t *testing.T) {
 
 	m.Stop()
 
-	if m.on {
-		t.Errorf("got %t, want %t", m.on, false)
+	if m.isOn {
+		t.Errorf("got %t, want %t", m.isOn, false)
 	}
 
 	mx := New(nil)

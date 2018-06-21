@@ -23,7 +23,7 @@ type SignalMonitor struct {
 	sync.Mutex
 	s *State
 
-	on   bool
+	isOn bool
 	done chan struct{}
 
 	j *signalJunction
@@ -104,10 +104,10 @@ func (m *SignalMonitor) Start() {
 	m.Lock()
 	defer m.Unlock()
 
-	if m.on {
+	if m.isOn {
 		return
 	}
-	m.on = true
+	m.isOn = true
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -122,8 +122,8 @@ func (m *SignalMonitor) Stop() {
 	m.Lock()
 	defer m.Unlock()
 
-	if m.on {
-		m.on = false
+	if m.isOn {
+		m.isOn = false
 		m.done <- struct{}{}
 	}
 }
