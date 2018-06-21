@@ -30,7 +30,7 @@ type checkable struct {
 	ct  int
 }
 
-func (c *checkable) handler(sm *sigmon.SignalMonitor) {
+func (c *checkable) handler(s *sigmon.State) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -64,7 +64,7 @@ func TestFuncSignalConstantRetrieval(t *testing.T) {
 		t.Errorf("unexpected error when calling %s: %s", s, err)
 	}
 
-	got, want := sm.Sig(), sigmon.SIGINT
+	got, want := sm.State().Signal(), sigmon.SIGINT
 	if got != want {
 		t.Errorf("got %s, want %s", got, want)
 	}

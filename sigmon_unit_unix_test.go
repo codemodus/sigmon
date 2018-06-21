@@ -26,7 +26,7 @@ type checkable struct {
 	ct  int
 }
 
-func (c *checkable) handler(sm *SignalMonitor) {
+func (c *checkable) handler(*State) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -72,9 +72,9 @@ func TestUnitSignalHandlerRegister(t *testing.T) {
 	c1 := &checkable{id: 123}
 	c2 := &checkable{id: 234}
 
-	h := newSignalHandler(nil)
-	h.register(c1.handler)
-	h.register(c2.handler)
+	h := newHandlerFuncRegistry(nil)
+	h.load(c1.handler)
+	h.load(c2.handler)
 
 	select {
 	case fn := <-h.reg:
@@ -82,7 +82,7 @@ func TestUnitSignalHandlerRegister(t *testing.T) {
 			t.Error("got nil, want not nil")
 		}
 
-		fn(&SignalMonitor{})
+		fn(&State{})
 	case <-time.After(time.Millisecond):
 		t.Error("should not wait forever")
 	}
@@ -99,10 +99,10 @@ func TestUnitSignalHandlerRegister(t *testing.T) {
 
 func TestUnitSignalHandlerSet(t *testing.T) {
 	c := &checkable{id: 123}
-	h := newSignalHandler(nil)
-	h.set(c.handler)
+	h := newHandlerFuncRegistry(nil)
+	h.crank(c.handler)
 
-	h.h(&SignalMonitor{})
+	h.fn(&State{})
 
 	id, val, _ := c.info()
 	if val != id {
@@ -112,9 +112,9 @@ func TestUnitSignalHandlerSet(t *testing.T) {
 
 func TestUnitSignalHandlerHandle(t *testing.T) {
 	c := &checkable{id: 123}
-	h := newSignalHandler(c.handler)
+	h := newHandlerFuncRegistry(c.handler)
 
-	h.handle(&SignalMonitor{})
+	h.handle(&State{})
 
 	id, val, _ := c.info()
 	if val != id {
@@ -128,7 +128,7 @@ func TestUnitSignalMonitorSet(t *testing.T) {
 	m.Set(c.handler)
 
 	select {
-	case fn := <-m.h.reg:
+	case fn := <-m.r.reg:
 		if fn == nil {
 			t.Error("got nil, want not nil")
 		}
@@ -140,8 +140,8 @@ func TestUnitSignalMonitorSet(t *testing.T) {
 func TestUnitSignalMonitorPreScan(t *testing.T) {
 	m := New(nil)
 
-	m.h.reg = make(chan func(*SignalMonitor), 1)
-	m.h.reg <- func(sm *SignalMonitor) {}
+	m.r.reg = make(chan HandlerFunc, 1)
+	m.r.reg <- func(*State) {}
 
 	got := m.preScan()
 	want := true
@@ -150,7 +150,7 @@ func TestUnitSignalMonitorPreScan(t *testing.T) {
 	}
 
 	select {
-	case <-m.h.reg:
+	case <-m.r.reg:
 		t.Error("failed to read from channel")
 	default:
 	}
@@ -185,7 +185,7 @@ func TestUnitSignalMonitorScan(t *testing.T) {
 		}
 
 		go func() {
-			m.h.reg <- func(sm *SignalMonitor) {}
+			m.r.reg <- func(*State) {}
 			m.j.sighup <- syscall.SIGHUP
 			m.j.sigint <- syscall.SIGINT
 			m.j.sigterm <- syscall.SIGTERM
@@ -210,7 +210,7 @@ func TestUnitSignalMonitorMonitor(t *testing.T) {
 
 	go m.monitor(wg)
 
-	m.h.reg <- func(sm *SignalMonitor) {
+	m.r.reg <- func(s *State) {
 		m.done <- struct{}{}
 	}
 	m.j.sighup <- syscall.SIGHUP
@@ -284,9 +284,9 @@ func TestUnitSignalMonitorStop(t *testing.T) {
 
 func TestUnitSignalMonitorSig(t *testing.T) {
 	m := New(nil)
-	m.sig = SIGHUP
+	m.setState(SIGHUP)
 
-	got, want := m.Sig(), SIGHUP
+	got, want := m.s.Signal(), SIGHUP
 	if got != want {
 		t.Errorf("got %s, want %s", got, want)
 	}

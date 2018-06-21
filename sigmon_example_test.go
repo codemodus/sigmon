@@ -51,7 +51,7 @@ func Example_passingContext() {
 	// INT 123
 }
 
-func signalHandler(sm *sigmon.SignalMonitor) {
+func signalHandler(*sigmon.State) {
 	// intentionally left empty
 }
 
@@ -61,11 +61,11 @@ type signalContext struct {
 	out string
 }
 
-func (ctx *signalContext) setOutput(sm *sigmon.SignalMonitor) {
+func (ctx *signalContext) setOutput(s *sigmon.State) {
 	ctx.Lock()
 	defer ctx.Unlock()
 
-	ctx.out = fmt.Sprintf("%s %d", sm.Sig(), ctx.id)
+	ctx.out = fmt.Sprintf("%s %d", s.Signal(), ctx.id)
 }
 
 func (ctx *signalContext) output() string {

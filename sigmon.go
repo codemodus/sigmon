@@ -5,42 +5,56 @@ import (
 	"sync"
 )
 
+// Signal wraps the string type to reduce confusion when checking Sig.
+type Signal string
+
+// Signal constants are string representations of handled os.Signals.
+const (
+	NOSIG   Signal = "N/A"
+	SIGHUP  Signal = "HUP"
+	SIGINT  Signal = "INT"
+	SIGTERM Signal = "TERM"
+	SIGUSR1 Signal = "USR1"
+	SIGUSR2 Signal = "USR2"
+)
+
 // SignalMonitor helps manage signal handling.
 type SignalMonitor struct {
 	sync.Mutex
-	sig Signal
-	on  bool
+	s *State
 
+	on   bool
 	done chan struct{}
 
 	j *signalJunction
-	h *signalHandler
+	r *handlerFuncRegistry
 }
 
 // New takes a function and returns a SignalMonitor. When a nil arg is
 // provided, no action will be taken during signal handling. Start must be
 // called in order to begin handling.
-func New(handler func(*SignalMonitor)) (s *SignalMonitor) {
+func New(fn HandlerFunc) *SignalMonitor {
 	return &SignalMonitor{
 		done: make(chan struct{}, 1),
 		j:    newSignalJunction(),
-		h:    newSignalHandler(handler),
+		r:    newHandlerFuncRegistry(fn),
+		s:    newState(NOSIG),
 	}
 }
 
 // Set allows the handler function to be added or removed. If no function has
 // been provided, no action will be taken during signal handling. Only the most
 // recently passed function holds any effect.
-func (m *SignalMonitor) Set(handler func(*SignalMonitor)) {
-	m.h.register(handler)
+func (m *SignalMonitor) Set(fn HandlerFunc) {
+	m.r.load(fn)
 }
 
 func (m *SignalMonitor) preScan() (alive bool) {
 	select {
 	case <-m.done:
 		return false
-	case fn := <-m.h.reg:
-		m.h.set(fn)
+	case fn := <-m.r.reg:
+		m.r.crank(fn)
 	default:
 	}
 
@@ -51,8 +65,8 @@ func (m *SignalMonitor) scan() (alive bool) {
 	select {
 	case <-m.done:
 		return false
-	case fn := <-m.h.reg:
-		m.h.set(fn)
+	case fn := <-m.r.reg:
+		m.r.crank(fn)
 	case <-m.j.sighup:
 		m.handle(SIGHUP)
 	case <-m.j.sigint:
@@ -114,23 +128,23 @@ func (m *SignalMonitor) Stop() {
 	}
 }
 
-// Sig returns a typed string (Signal) representing the most recently called
+// State returns a typed string (Signal) representing the most recently called
 // os.Signal.
-func (m *SignalMonitor) Sig() Signal {
+func (m *SignalMonitor) State() *State {
 	m.Lock()
 	defer m.Unlock()
 
-	return m.sig
+	return m.s
 }
 
-func (m *SignalMonitor) setSig(sig Signal) {
+func (m *SignalMonitor) setState(s Signal) {
 	m.Lock()
 	defer m.Unlock()
 
-	m.sig = sig
+	m.s = newState(s)
 }
 
-func (m *SignalMonitor) handle(sig Signal) {
-	m.setSig(sig)
-	m.h.handle(m)
+func (m *SignalMonitor) handle(s Signal) {
+	m.setState(s)
+	m.r.handle(m.State())
 }
