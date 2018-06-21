@@ -7,7 +7,8 @@ import (
 	"syscall"
 )
 
-// signalJunction is a support type for signalMonitor.
+// signalJunction manages the connection and disconnection of os signal
+// handling.
 type signalJunction struct {
 	sync.Mutex
 	isConnected bool
@@ -40,8 +41,7 @@ func (j *signalJunction) connect() {
 	signal.Notify(j.sighup, syscall.SIGHUP)
 	signal.Notify(j.sigint, syscall.SIGINT)
 	signal.Notify(j.sigterm, syscall.SIGTERM)
-	// split for unix/windows
-	notifyUSR(j.sigusr1, j.sigusr2)
+	notifyUSR(j.sigusr1, j.sigusr2) // split for unix/windows
 
 	j.isConnected = true
 }
