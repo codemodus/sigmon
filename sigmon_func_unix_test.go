@@ -91,7 +91,7 @@ func TestFuncSignalMonitorDoubleSetAndStop(t *testing.T) {
 	_, _, got := c.info()
 	want := 0
 	if got != want {
-		t.Errorf("got %s, want %s", got, want)
+		t.Errorf("got %d, want %d", got, want)
 	}
 }
 
