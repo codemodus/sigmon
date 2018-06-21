@@ -2,119 +2,8 @@
 package sigmon
 
 import (
-	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 )
-
-// Signal wraps the string type to reduce confusion when checking Sig.
-type Signal string
-
-// Signal constants are string representations of handled os.Signals.
-const (
-	SIGHUP  Signal = "HUP"
-	SIGINT  Signal = "INT"
-	SIGTERM Signal = "TERM"
-	SIGUSR1 Signal = "USR1"
-	SIGUSR2 Signal = "USR2"
-)
-
-// signalJunction is a support type for signalMonitor.
-type signalJunction struct {
-	sync.Mutex
-	isConnected bool
-
-	sighup  chan os.Signal
-	sigint  chan os.Signal
-	sigterm chan os.Signal
-	sigusr1 chan os.Signal
-	sigusr2 chan os.Signal
-}
-
-func newSignalJunction() *signalJunction {
-	return &signalJunction{
-		sighup:  make(chan os.Signal, 1),
-		sigint:  make(chan os.Signal, 1),
-		sigterm: make(chan os.Signal, 1),
-		sigusr1: make(chan os.Signal, 1),
-		sigusr2: make(chan os.Signal, 1),
-	}
-}
-
-func (j *signalJunction) connect() {
-	j.Lock()
-	defer j.Unlock()
-
-	if j.isConnected {
-		return
-	}
-
-	signal.Notify(j.sighup, syscall.SIGHUP)
-	signal.Notify(j.sigint, syscall.SIGINT)
-	signal.Notify(j.sigterm, syscall.SIGTERM)
-	// split for unix/windows
-	notifyUSR(j.sigusr1, j.sigusr2)
-
-	j.isConnected = true
-}
-
-func (j *signalJunction) disconnect() {
-	j.Lock()
-	defer j.Unlock()
-
-	if !j.isConnected {
-		return
-	}
-
-	j.isConnected = false
-
-	defer signal.Stop(j.sighup)
-	defer signal.Stop(j.sigint)
-	defer signal.Stop(j.sigterm)
-	defer signal.Stop(j.sigusr1)
-	defer signal.Stop(j.sigusr2)
-}
-
-// signalHandler is a support type for signalMonitor.
-type signalHandler struct {
-	sync.Mutex
-	handler func(*SignalMonitor)
-
-	registry chan func(*SignalMonitor)
-}
-
-func newSignalHandler(handler func(*SignalMonitor)) *signalHandler {
-	return &signalHandler{
-		handler:  handler,
-		registry: make(chan func(*SignalMonitor), 1),
-	}
-}
-
-func (h *signalHandler) register(handler func(*SignalMonitor)) {
-	select {
-	case <-h.registry:
-	default:
-	}
-
-	h.registry <- handler
-}
-
-func (h *signalHandler) set(handler func(*SignalMonitor)) {
-	h.Lock()
-	defer h.Unlock()
-
-	h.handler = handler
-}
-
-func (h *signalHandler) handle(sm *SignalMonitor) {
-	h.Lock()
-	defer h.Unlock()
-
-	if h.handler != nil {
-		h.handler(sm)
-	}
-}
 
 // SignalMonitor helps manage signal handling.
 type SignalMonitor struct {
@@ -122,20 +11,20 @@ type SignalMonitor struct {
 	sig Signal
 	on  bool
 
-	off chan struct{}
+	done chan struct{}
 
-	junction *signalJunction
-	handler  *signalHandler
+	j *signalJunction
+	h *signalHandler
 }
 
 // New takes a function and returns a SignalMonitor. When a nil arg is
-// provided, no action will be taken during signal handling. Run must be
+// provided, no action will be taken during signal handling. Start must be
 // called in order to begin handling.
 func New(handler func(*SignalMonitor)) (s *SignalMonitor) {
 	return &SignalMonitor{
-		off:      make(chan struct{}, 1),
-		junction: newSignalJunction(),
-		handler:  newSignalHandler(handler),
+		done: make(chan struct{}, 1),
+		j:    newSignalJunction(),
+		h:    newSignalHandler(handler),
 	}
 }
 
@@ -143,15 +32,15 @@ func New(handler func(*SignalMonitor)) (s *SignalMonitor) {
 // been provided, no action will be taken during signal handling. Only the most
 // recently passed function holds any effect.
 func (m *SignalMonitor) Set(handler func(*SignalMonitor)) {
-	m.handler.register(handler)
+	m.h.register(handler)
 }
 
 func (m *SignalMonitor) preScan() (alive bool) {
 	select {
-	case <-m.off:
+	case <-m.done:
 		return false
-	case fn := <-m.handler.registry:
-		m.handler.set(fn)
+	case fn := <-m.h.registry:
+		m.h.set(fn)
 	default:
 	}
 
@@ -160,19 +49,19 @@ func (m *SignalMonitor) preScan() (alive bool) {
 
 func (m *SignalMonitor) scan() (alive bool) {
 	select {
-	case <-m.off:
+	case <-m.done:
 		return false
-	case fn := <-m.handler.registry:
-		m.handler.set(fn)
-	case <-m.junction.sighup:
+	case fn := <-m.h.registry:
+		m.h.set(fn)
+	case <-m.j.sighup:
 		m.handle(SIGHUP)
-	case <-m.junction.sigint:
+	case <-m.j.sigint:
 		m.handle(SIGINT)
-	case <-m.junction.sigterm:
+	case <-m.j.sigterm:
 		m.handle(SIGTERM)
-	case <-m.junction.sigusr1:
+	case <-m.j.sigusr1:
 		m.handle(SIGUSR1)
-	case <-m.junction.sigusr2:
+	case <-m.j.sigusr2:
 		m.handle(SIGUSR2)
 	}
 
@@ -180,8 +69,8 @@ func (m *SignalMonitor) scan() (alive bool) {
 }
 
 func (m *SignalMonitor) monitor(wg *sync.WaitGroup) {
-	m.junction.connect()
-	defer m.junction.disconnect()
+	m.j.connect()
+	defer m.j.disconnect()
 
 	wg.Done()
 
@@ -196,8 +85,8 @@ func (m *SignalMonitor) monitor(wg *sync.WaitGroup) {
 	}
 }
 
-// Run starts signal handling.
-func (m *SignalMonitor) Run() {
+// Start starts signal handling.
+func (m *SignalMonitor) Start() {
 	m.Lock()
 	defer m.Unlock()
 
@@ -221,7 +110,7 @@ func (m *SignalMonitor) Stop() {
 
 	if m.on {
 		m.on = false
-		m.off <- struct{}{}
+		m.done <- struct{}{}
 	}
 }
 
@@ -243,5 +132,5 @@ func (m *SignalMonitor) setSig(sig Signal) {
 
 func (m *SignalMonitor) handle(sig Signal) {
 	m.setSig(sig)
-	m.handler.handle(m)
+	m.h.handle(m)
 }

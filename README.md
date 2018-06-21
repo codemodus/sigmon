@@ -10,7 +10,7 @@ Package sigmon simplifies os.Signal handling.
 type Signal
 type SignalMonitor
     func New(handler func(*SignalMonitor)) (s *SignalMonitor)
-    func (s *SignalMonitor) Run()
+    func (s *SignalMonitor) Start()
     func (s *SignalMonitor) Set(handler func(*SignalMonitor))
     func (s *SignalMonitor) Sig() Signal
     func (s *SignalMonitor) Stop()
@@ -25,7 +25,7 @@ import (
 
 func main() {
     sm := sigmon.New(nil)
-    sm.Run()
+    sm.Start()
     // Do things which cannot be affected by OS signals...
 
     sm.Set(signalHandler)
@@ -62,7 +62,7 @@ func main() {
 
     // The setOutput method is ran on any signal and will store the signal text.
     sm := sigmon.New(sigCtx.setOutput)
-    sm.Run()
+    sm.Start()
 
     // Simulate system signal call (windows does not support self-signaling).
     if err := callOSSignal(syscall.SIGINT); err != nil {

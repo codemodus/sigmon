@@ -47,7 +47,7 @@ func (c *checkable) info() (id, val, ct int) {
 
 func TestFuncSignalIgnorance(t *testing.T) {
 	sm := sigmon.New(nil)
-	sm.Run()
+	sm.Start()
 
 	s := syscall.SIGINT
 	if err := callOSSignal(s); err != nil {
@@ -57,7 +57,7 @@ func TestFuncSignalIgnorance(t *testing.T) {
 
 func TestFuncSignalConstantRetrieval(t *testing.T) {
 	sm := sigmon.New(nil)
-	sm.Run()
+	sm.Start()
 
 	s := syscall.SIGINT
 	if err := callOSSignal(s); err != nil {
@@ -77,7 +77,7 @@ func TestFuncSignalMonitorDoubleSetAndStop(t *testing.T) {
 	sm.Set(c.handler)
 	sm.Set(c.handler)
 
-	sm.Run()
+	sm.Start()
 	sm.Stop()
 
 	ch := make(chan os.Signal, 1)
@@ -99,7 +99,7 @@ func TestFuncSignalHandling(t *testing.T) {
 	c := &checkable{id: 123}
 
 	sm := sigmon.New(nil)
-	sm.Run()
+	sm.Start()
 	sm.Set(c.handler)
 
 	for i, s := range sigs {

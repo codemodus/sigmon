@@ -102,7 +102,7 @@ func TestUnitSignalHandlerSet(t *testing.T) {
 	h := newSignalHandler(nil)
 	h.set(c.handler)
 
-	h.handler(&SignalMonitor{})
+	h.h(&SignalMonitor{})
 
 	id, val, _ := c.info()
 	if val != id {
@@ -128,7 +128,7 @@ func TestUnitSignalMonitorSet(t *testing.T) {
 	m.Set(c.handler)
 
 	select {
-	case fn := <-m.handler.registry:
+	case fn := <-m.h.registry:
 		if fn == nil {
 			t.Error("got nil, want not nil")
 		}
@@ -140,8 +140,8 @@ func TestUnitSignalMonitorSet(t *testing.T) {
 func TestUnitSignalMonitorPreScan(t *testing.T) {
 	m := New(nil)
 
-	m.handler.registry = make(chan func(*SignalMonitor), 1)
-	m.handler.registry <- func(sm *SignalMonitor) {}
+	m.h.registry = make(chan func(*SignalMonitor), 1)
+	m.h.registry <- func(sm *SignalMonitor) {}
 
 	got := m.preScan()
 	want := true
@@ -150,13 +150,13 @@ func TestUnitSignalMonitorPreScan(t *testing.T) {
 	}
 
 	select {
-	case <-m.handler.registry:
+	case <-m.h.registry:
 		t.Error("failed to read from channel")
 	default:
 	}
 
-	m.off = make(chan struct{}, 1)
-	m.off <- struct{}{}
+	m.done = make(chan struct{}, 1)
+	m.done <- struct{}{}
 
 	got = m.preScan()
 	want = false
@@ -176,7 +176,7 @@ func TestUnitSignalMonitorScan(t *testing.T) {
 
 	time.AfterFunc(time.Second*6, func() {
 		go func() {
-			m.off <- struct{}{}
+			m.done <- struct{}{}
 		}()
 
 		got, want := m.scan(), false
@@ -185,12 +185,12 @@ func TestUnitSignalMonitorScan(t *testing.T) {
 		}
 
 		go func() {
-			m.handler.registry <- func(sm *SignalMonitor) {}
-			m.junction.sighup <- syscall.SIGHUP
-			m.junction.sigint <- syscall.SIGINT
-			m.junction.sigterm <- syscall.SIGTERM
-			m.junction.sigusr1 <- syscall.SIGUSR1
-			m.junction.sigusr2 <- syscall.SIGUSR2
+			m.h.registry <- func(sm *SignalMonitor) {}
+			m.j.sighup <- syscall.SIGHUP
+			m.j.sigint <- syscall.SIGINT
+			m.j.sigterm <- syscall.SIGTERM
+			m.j.sigusr1 <- syscall.SIGUSR1
+			m.j.sigusr2 <- syscall.SIGUSR2
 		}()
 
 		for i := 0; i < 6; i++ {
@@ -210,27 +210,27 @@ func TestUnitSignalMonitorMonitor(t *testing.T) {
 
 	go m.monitor(wg)
 
-	m.handler.registry <- func(sm *SignalMonitor) {
-		m.off <- struct{}{}
+	m.h.registry <- func(sm *SignalMonitor) {
+		m.done <- struct{}{}
 	}
-	m.junction.sighup <- syscall.SIGHUP
+	m.j.sighup <- syscall.SIGHUP
 
 	select {
-	case <-m.junction.sighup:
+	case <-m.j.sighup:
 	default:
 		t.Error("signal should not have been handled")
 	}
 }
 
-func TestUnitSignalMonitorRun(t *testing.T) {
+func TestUnitSignalMonitorStart(t *testing.T) {
 	c := &checkable{id: 123}
 	m := New(c.handler)
 	if m.on {
 		t.Errorf("got %t, want %t", m.on, false)
 	}
 
-	m.Run()
-	m.Run()
+	m.Start()
+	m.Start()
 	if !m.on {
 		t.Errorf("got %t, want %t", m.on, true)
 	}
@@ -254,7 +254,7 @@ func TestUnitSignalMonitorRun(t *testing.T) {
 func TestUnitSignalMonitorStop(t *testing.T) {
 	c := &checkable{id: 123}
 	m := New(c.handler)
-	m.Run()
+	m.Start()
 
 	s := syscall.SIGHUP
 	if err := callOSSignal(s); err != nil {
@@ -268,7 +268,7 @@ func TestUnitSignalMonitorStop(t *testing.T) {
 	}
 
 	mx := New(nil)
-	mx.Run()
+	mx.Start()
 
 	if err := callOSSignal(s); err != nil {
 		t.Errorf("unexpected error when calling %s: %s", s, err)

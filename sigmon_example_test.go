@@ -18,7 +18,7 @@ type contextWrap struct {
 
 func Example() {
 	sm := sigmon.New(nil)
-	sm.Run()
+	sm.Start()
 	// Do things which cannot be affected by OS signals...
 
 	sm.Set(signalHandler)
@@ -36,7 +36,7 @@ func Example_passingContext() {
 
 	// The setOutput method stores the signal type when any signal is handled.
 	sm := sigmon.New(sigCtx.setOutput)
-	sm.Run()
+	sm.Start()
 
 	// Simulate a system signal (windows does not support self-signaling).
 	if err := callOSSignal(syscall.SIGINT); err != nil {
