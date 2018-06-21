@@ -39,7 +39,7 @@ func (m *SignalMonitor) preScan() (alive bool) {
 	select {
 	case <-m.done:
 		return false
-	case fn := <-m.h.registry:
+	case fn := <-m.h.reg:
 		m.h.set(fn)
 	default:
 	}
@@ -51,7 +51,7 @@ func (m *SignalMonitor) scan() (alive bool) {
 	select {
 	case <-m.done:
 		return false
-	case fn := <-m.h.registry:
+	case fn := <-m.h.reg:
 		m.h.set(fn)
 	case <-m.j.sighup:
 		m.handle(SIGHUP)

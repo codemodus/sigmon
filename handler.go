@@ -7,23 +7,23 @@ type signalHandler struct {
 	sync.Mutex
 	h func(*SignalMonitor)
 
-	registry chan func(*SignalMonitor)
+	reg chan func(*SignalMonitor)
 }
 
 func newSignalHandler(handler func(*SignalMonitor)) *signalHandler {
 	return &signalHandler{
-		h:        handler,
-		registry: make(chan func(*SignalMonitor), 1),
+		h:   handler,
+		reg: make(chan func(*SignalMonitor), 1),
 	}
 }
 
 func (h *signalHandler) register(handler func(*SignalMonitor)) {
 	select {
-	case <-h.registry:
+	case <-h.reg:
 	default:
 	}
 
-	h.registry <- handler
+	h.reg <- handler
 }
 
 func (h *signalHandler) set(handler func(*SignalMonitor)) {

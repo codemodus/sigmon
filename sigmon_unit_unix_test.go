@@ -77,7 +77,7 @@ func TestUnitSignalHandlerRegister(t *testing.T) {
 	h.register(c2.handler)
 
 	select {
-	case fn := <-h.registry:
+	case fn := <-h.reg:
 		if fn == nil {
 			t.Error("got nil, want not nil")
 		}
@@ -128,7 +128,7 @@ func TestUnitSignalMonitorSet(t *testing.T) {
 	m.Set(c.handler)
 
 	select {
-	case fn := <-m.h.registry:
+	case fn := <-m.h.reg:
 		if fn == nil {
 			t.Error("got nil, want not nil")
 		}
@@ -140,8 +140,8 @@ func TestUnitSignalMonitorSet(t *testing.T) {
 func TestUnitSignalMonitorPreScan(t *testing.T) {
 	m := New(nil)
 
-	m.h.registry = make(chan func(*SignalMonitor), 1)
-	m.h.registry <- func(sm *SignalMonitor) {}
+	m.h.reg = make(chan func(*SignalMonitor), 1)
+	m.h.reg <- func(sm *SignalMonitor) {}
 
 	got := m.preScan()
 	want := true
@@ -150,7 +150,7 @@ func TestUnitSignalMonitorPreScan(t *testing.T) {
 	}
 
 	select {
-	case <-m.h.registry:
+	case <-m.h.reg:
 		t.Error("failed to read from channel")
 	default:
 	}
@@ -185,7 +185,7 @@ func TestUnitSignalMonitorScan(t *testing.T) {
 		}
 
 		go func() {
-			m.h.registry <- func(sm *SignalMonitor) {}
+			m.h.reg <- func(sm *SignalMonitor) {}
 			m.j.sighup <- syscall.SIGHUP
 			m.j.sigint <- syscall.SIGINT
 			m.j.sigterm <- syscall.SIGTERM
@@ -210,7 +210,7 @@ func TestUnitSignalMonitorMonitor(t *testing.T) {
 
 	go m.monitor(wg)
 
-	m.h.registry <- func(sm *SignalMonitor) {
+	m.h.reg <- func(sm *SignalMonitor) {
 		m.done <- struct{}{}
 	}
 	m.j.sighup <- syscall.SIGHUP
