@@ -8,7 +8,7 @@ import (
 	"syscall"
 )
 
-func notifyUSR(u1, u2 chan<- os.Signal) {
-	signal.Notify(u1, syscall.SIGUSR1)
-	signal.Notify(u2, syscall.SIGUSR2)
+func notifyx(usr1, usr2 chan<- os.Signal) {
+	signal.Notify(usr1, syscall.SIGUSR1)
+	signal.Notify(usr2, syscall.SIGUSR2)
 }

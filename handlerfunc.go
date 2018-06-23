@@ -8,38 +8,60 @@ type HandlerFunc func(*State)
 // handlerFuncRegistry is a support type for signalMonitor.
 type handlerFuncRegistry struct {
 	sync.Mutex
+	mt  HandlerFunc
 	fn  HandlerFunc
 	reg chan HandlerFunc
 }
 
 func newHandlerFuncRegistry(fn HandlerFunc) *handlerFuncRegistry {
+	mt := func(*State) {}
+
 	return &handlerFuncRegistry{
-		fn:  fn,
+		mt:  mt,
+		fn:  filterHandlerFunc(mt, fn),
 		reg: make(chan HandlerFunc, 1),
 	}
 }
 
-func (r *handlerFuncRegistry) load(fn HandlerFunc) {
+func (r *handlerFuncRegistry) loadBuffer(fn HandlerFunc) {
 	select {
 	case <-r.reg:
 	default:
 	}
 
-	r.reg <- fn
+	r.reg <- r.filter(fn)
 }
 
-func (r *handlerFuncRegistry) crank(fn HandlerFunc) {
+func (r *handlerFuncRegistry) buffer() chan HandlerFunc {
+	return r.reg
+}
+
+func (r *handlerFuncRegistry) set(fn HandlerFunc) {
 	r.Lock()
 	defer r.Unlock()
 
-	r.fn = fn
+	r.fn = r.filter(fn)
 }
 
-func (r *handlerFuncRegistry) handle(s *State) {
+func (r *handlerFuncRegistry) get() HandlerFunc {
 	r.Lock()
 	defer r.Unlock()
 
-	if r.fn != nil {
-		r.fn(s)
+	return r.filter(r.fn)
+}
+
+func (r *handlerFuncRegistry) filter(fn HandlerFunc) HandlerFunc {
+	return filterHandlerFunc(r.mt, fn)
+}
+
+func filterHandlerFunc(mt, fn HandlerFunc) HandlerFunc {
+	if fn != nil {
+		return fn
 	}
+
+	if mt != nil {
+		return mt
+	}
+
+	return func(*State) {}
 }

@@ -21,9 +21,9 @@ const (
 // SignalMonitor helps manage signal handling.
 type SignalMonitor struct {
 	sync.Mutex
-	s *State
-
 	isOn bool
+	s    *State
+
 	done chan struct{}
 
 	j *signalJunction
@@ -46,15 +46,15 @@ func New(fn HandlerFunc) *SignalMonitor {
 // been provided, no action will be taken during signal handling. Only the most
 // recently passed function holds any effect.
 func (m *SignalMonitor) Set(fn HandlerFunc) {
-	m.r.load(fn)
+	m.r.loadBuffer(fn)
 }
 
 func (m *SignalMonitor) preScan() (alive bool) {
 	select {
 	case <-m.done:
 		return false
-	case fn := <-m.r.reg:
-		m.r.crank(fn)
+	case fn := <-m.r.buffer():
+		m.r.set(fn)
 	default:
 	}
 
@@ -65,18 +65,12 @@ func (m *SignalMonitor) scan() (alive bool) {
 	select {
 	case <-m.done:
 		return false
-	case fn := <-m.r.reg:
-		m.r.crank(fn)
-	case <-m.j.sighup:
-		m.handle(SIGHUP)
-	case <-m.j.sigint:
-		m.handle(SIGINT)
-	case <-m.j.sigterm:
-		m.handle(SIGTERM)
-	case <-m.j.sigusr1:
-		m.handle(SIGUSR1)
-	case <-m.j.sigusr2:
-		m.handle(SIGUSR2)
+	case fn := <-m.r.buffer():
+		m.r.set(fn)
+	case s := <-m.j.signals():
+		m.setState(s)
+		fn := m.r.get()
+		fn(m.State())
 	}
 
 	return true
@@ -142,9 +136,4 @@ func (m *SignalMonitor) setState(s Signal) {
 	defer m.Unlock()
 
 	m.s = newState(s)
-}
-
-func (m *SignalMonitor) handle(s Signal) {
-	m.setState(s)
-	m.r.handle(m.State())
 }

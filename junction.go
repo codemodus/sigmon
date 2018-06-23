@@ -18,6 +18,9 @@ type signalJunction struct {
 	sigterm chan os.Signal
 	sigusr1 chan os.Signal
 	sigusr2 chan os.Signal
+
+	sigs chan Signal
+	done chan struct{}
 }
 
 func newSignalJunction() *signalJunction {
@@ -27,6 +30,8 @@ func newSignalJunction() *signalJunction {
 		sigterm: make(chan os.Signal, 1),
 		sigusr1: make(chan os.Signal, 1),
 		sigusr2: make(chan os.Signal, 1),
+		sigs:    make(chan Signal, 1),
+		done:    make(chan struct{}, 1),
 	}
 }
 
@@ -41,7 +46,26 @@ func (j *signalJunction) connect() {
 	signal.Notify(j.sighup, syscall.SIGHUP)
 	signal.Notify(j.sigint, syscall.SIGINT)
 	signal.Notify(j.sigterm, syscall.SIGTERM)
-	notifyUSR(j.sigusr1, j.sigusr2) // split for unix/windows
+	notifyx(j.sigusr1, j.sigusr2) // split for unix/windows
+
+	go func() {
+		for {
+			select {
+			case <-j.done:
+				return
+			case <-j.sighup:
+				j.sigs <- SIGHUP
+			case <-j.sigint:
+				j.sigs <- SIGINT
+			case <-j.sigterm:
+				j.sigs <- SIGTERM
+			case <-j.sigusr1:
+				j.sigs <- SIGUSR1
+			case <-j.sigusr2:
+				j.sigs <- SIGUSR2
+			}
+		}
+	}()
 
 	j.isConnected = true
 }
@@ -54,6 +78,8 @@ func (j *signalJunction) disconnect() {
 		return
 	}
 
+	j.done <- struct{}{}
+
 	j.isConnected = false
 
 	defer signal.Stop(j.sighup)
@@ -61,4 +87,8 @@ func (j *signalJunction) disconnect() {
 	defer signal.Stop(j.sigterm)
 	defer signal.Stop(j.sigusr1)
 	defer signal.Stop(j.sigusr2)
+}
+
+func (j *signalJunction) signals() chan Signal {
+	return j.sigs
 }
