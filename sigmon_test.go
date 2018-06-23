@@ -30,25 +30,30 @@ func tSignalMonitorSignalSuppression(t *testing.T) {
 }
 
 func tSignalMonitorConstantRetrieval(t *testing.T) {
-	sm := New(nil)
-	sm.Start()
-
-	got, want := sm.State().Signal(), NOSIG
-	if got != want {
-		t.Errorf("got %s, want %s", got, want)
+	ct := 0
+	f := func(s *State) {
+		ct++
+		got, want := s.Signal(), SIGINT
+		if got != want {
+			t.Errorf("got %s, want %s", got, want)
+		}
 	}
+
+	sm := New(f)
+	sm.Start()
 
 	s := syscall.SIGINT
 	if err := callOSSignal(s); err != nil {
 		t.Errorf("unexpected error when calling %s: %s", s, err)
 	}
 
-	got, want = sm.State().Signal(), SIGINT
-	if got != want {
-		t.Errorf("got %s, want %s", got, want)
-	}
-
 	sm.Stop()
+
+	runtime.Gosched()
+
+	if ct == 0 {
+		t.Errorf("handlerfunc not called")
+	}
 }
 
 func tSignalMonitorExtraMethodCalls(t *testing.T) {

@@ -7,9 +7,9 @@ import (
 	"syscall"
 )
 
-// signalJunction manages the connection and disconnection of os signal
+// junction manages the connection and disconnection of os signal
 // handling.
-type signalJunction struct {
+type junction struct {
 	sync.Mutex
 	isConnected bool
 
@@ -23,8 +23,8 @@ type signalJunction struct {
 	done chan struct{}
 }
 
-func newSignalJunction() *signalJunction {
-	return &signalJunction{
+func newJunction() *junction {
+	return &junction{
 		sighup:  make(chan os.Signal, 1),
 		sigint:  make(chan os.Signal, 1),
 		sigterm: make(chan os.Signal, 1),
@@ -35,7 +35,7 @@ func newSignalJunction() *signalJunction {
 	}
 }
 
-func (j *signalJunction) connect() {
+func (j *junction) connect() {
 	j.Lock()
 	defer j.Unlock()
 
@@ -70,7 +70,7 @@ func (j *signalJunction) connect() {
 	j.isConnected = true
 }
 
-func (j *signalJunction) disconnect() {
+func (j *junction) disconnect() {
 	j.Lock()
 	defer j.Unlock()
 
@@ -89,6 +89,6 @@ func (j *signalJunction) disconnect() {
 	defer signal.Stop(j.sigusr2)
 }
 
-func (j *signalJunction) signals() chan Signal {
+func (j *junction) signals() chan Signal {
 	return j.sigs
 }

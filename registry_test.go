@@ -5,13 +5,13 @@ import (
 	"testing"
 )
 
-func TestHandlerFuncRegistry(t *testing.T) {
-	t.Run("LoadBufferBuffer", tHandlerFuncRegistryLoadBufferBuffer)
-	t.Run("SetGet", tHandlerFuncRegistrySetGet)
+func TestRegistry(t *testing.T) {
+	t.Run("LoadBufferBuffer", tRegistryLoadBufferBuffer)
+	t.Run("SetGet", tRegistrySetGet)
 }
 
-func tHandlerFuncRegistryLoadBufferBuffer(t *testing.T) {
-	r := newHandlerFuncRegistry(nil)
+func tRegistryLoadBufferBuffer(t *testing.T) {
+	r := newRegistry(nil)
 	f := func(*State) {}
 
 	r.loadBuffer(nil)
@@ -47,8 +47,8 @@ func tHandlerFuncRegistryLoadBufferBuffer(t *testing.T) {
 	}
 }
 
-func tHandlerFuncRegistrySetGet(t *testing.T) {
-	r := newHandlerFuncRegistry(nil)
+func tRegistrySetGet(t *testing.T) {
+	r := newRegistry(nil)
 	f := func(*State) {}
 
 	if r.get() == nil {

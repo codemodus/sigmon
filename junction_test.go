@@ -15,7 +15,7 @@ func TestJunction(t *testing.T) {
 }
 
 func tJunctionConnectDisconnectSignals(t *testing.T) {
-	j := newSignalJunction()
+	j := newJunction()
 
 	j.connect()
 	j.connect() // panics if incorrectly designed

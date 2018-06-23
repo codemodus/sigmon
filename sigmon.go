@@ -5,12 +5,14 @@ import (
 	"sync"
 )
 
+// HandlerFunc ...
+type HandlerFunc func(*State)
+
 // Signal wraps the string type to reduce confusion when checking Sig.
 type Signal string
 
 // Signal constants are string representations of handled os.Signals.
 const (
-	NOSIG   Signal = "N/A"
 	SIGHUP  Signal = "HUP"
 	SIGINT  Signal = "INT"
 	SIGTERM Signal = "TERM"
@@ -22,12 +24,11 @@ const (
 type SignalMonitor struct {
 	sync.Mutex
 	isOn bool
-	s    *State
 
 	done chan struct{}
 
-	j *signalJunction
-	r *handlerFuncRegistry
+	j *junction
+	r *registry
 }
 
 // New takes a function and returns a SignalMonitor. When a nil arg is
@@ -36,9 +37,8 @@ type SignalMonitor struct {
 func New(fn HandlerFunc) *SignalMonitor {
 	return &SignalMonitor{
 		done: make(chan struct{}, 1),
-		j:    newSignalJunction(),
-		r:    newHandlerFuncRegistry(fn),
-		s:    newState(NOSIG),
+		j:    newJunction(),
+		r:    newRegistry(fn),
 	}
 }
 
@@ -68,9 +68,7 @@ func (m *SignalMonitor) scan() (alive bool) {
 	case fn := <-m.r.buffer():
 		m.r.set(fn)
 	case s := <-m.j.signals():
-		m.setState(s)
-		fn := m.r.get()
-		fn(m.State())
+		m.r.get()(newState(s))
 	}
 
 	return true
@@ -120,20 +118,4 @@ func (m *SignalMonitor) Stop() {
 		m.isOn = false
 		m.done <- struct{}{}
 	}
-}
-
-// State returns a typed string (Signal) representing the most recently called
-// os.Signal.
-func (m *SignalMonitor) State() *State {
-	m.Lock()
-	defer m.Unlock()
-
-	return m.s
-}
-
-func (m *SignalMonitor) setState(s Signal) {
-	m.Lock()
-	defer m.Unlock()
-
-	m.s = newState(s)
 }
