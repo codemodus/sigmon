@@ -60,7 +60,7 @@ func handle(s *sigmon.State) {
 }
 ```
 
-### Setup With More Details
+### Setup Elaborated
 
 ```go
 func main() {
@@ -86,7 +86,7 @@ func main() {
 }
 ```
 
-### HandlerFunc Using `syscall` Package
+### HandlerFunc Using `syscall` Signal Constants
 
 ```go
 func handle(s *sigmon.State) {
