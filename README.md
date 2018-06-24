@@ -1,19 +1,26 @@
 # sigmon
 
-    go get github.com/codemodus/sigmon
+    go get -u github.com/codemodus/sigmon
 
 Package sigmon simplifies os.Signal handling.
+
+The benefits of this over a more simplistic approach are eased signal 
+bypassability, eased signal handling replaceability, the rectification 
+of system signal quirks, and operating system portability (Windows will 
+ignore USR1 and USR2 signals, and some testing is bypassed).
 
 ## Usage
 
 ```go
+type HandlerFunc
 type Signal
 type SignalMonitor
-    func New(handler func(*SignalMonitor)) (s *SignalMonitor)
-    func (s *SignalMonitor) Start()
-    func (s *SignalMonitor) Set(handler func(*SignalMonitor))
-    func (s *SignalMonitor) Sig() Signal
-    func (s *SignalMonitor) Stop()
+    func New(fn HandlerFunc) *SignalMonitor
+    func (m *SignalMonitor) Set(fn HandlerFunc)
+    func (m *SignalMonitor) Start()
+    func (m *SignalMonitor) Stop()
+type State
+    func (s *State) Signal() Signal
 ```
 
 ### Setup
@@ -28,7 +35,7 @@ func main() {
     sm.Start()
     // Do things which cannot be affected by OS signals...
 
-    sm.Set(signalHandler)
+    sm.Set(handle)
     // Do things which can be affected by OS signals...
 
     sm.Set(nil)
@@ -42,8 +49,8 @@ func main() {
 ### Signal Handler
 
 ```go
-func signalHandler(sm *sigmon.SignalMonitor) {
-    switch sm.Sig() {
+func handle(s *sigmon.State) {
+    switch s.Signal() {
     case sigmon.SIGHUP:
         // Reload
     case sigmon.SIGINT, sigmon.SIGTERM:
@@ -54,25 +61,31 @@ func signalHandler(sm *sigmon.SignalMonitor) {
 }
 ```
 
-### Signal Handler With Context
+### Setup With More Details
 
 ```go
 func main() {
-    sigCtx := &signalContext{id: 123}
-
-    // The setOutput method is ran on any signal and will store the signal text.
-    sm := sigmon.New(sigCtx.setOutput)
+    sm := sigmon.New(nil)
     sm.Start()
+    // Only SIGKILL can disturb the following until sm.Set is called below.
 
-    // Simulate system signal call (windows does not support self-signaling).
-    if err := callOSSignal(syscall.SIGINT); err != nil {
-        fmt.Fprintln(os.Stderr, err)
-    }
+    db := newDataBase(creds)
+    db.Migrate()
 
-    sm.Stop()
+    app := newWebApp(db)
+    app.ListenAndServe()
 
-    // The output method returns the called signal text and sigCtx.id value.
-    fmt.Println(sigCtx.output()) // Outputs: "INT 123"
+    sm.Set(func(s *sigmon.State) {
+        switch s.Signal() {
+        case sigmon.SIGHUP:
+            app.Restart()
+        default:
+            app.Shutdown() // shutdown on all other signals
+        }
+    })
+
+    // Once app.Shutdown is called, app.Wait will stop blocking.
+    app.Wait()
 }
 ```
 
