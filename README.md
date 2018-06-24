@@ -33,30 +33,29 @@ import (
 func main() {
     sm := sigmon.New(nil)
     sm.Start()
-    // Do things which cannot be affected by OS signals...
+
+    // Do things which cannot be affected by OS signals other than SIGKILL...
 
     sm.Set(handle)
-    // Do things which can be affected by OS signals...
 
-    sm.Set(nil)
-    // Do more things which cannot be affected by OS signals...
+    // Do things which can be affected by handled OS signals...
 
     sm.Stop()
     // OS signals will be handled normally.
 }
 ```
 
-### Signal Handler
+### HandlerFunc
 
 ```go
 func handle(s *sigmon.State) {
     switch s.Signal() {
     case sigmon.SIGHUP:
-        // Reload
+        // reload
     case sigmon.SIGINT, sigmon.SIGTERM:
-        // Stop
+        // stop
     case sigmon.SIGUSR1, sigmon.SIGUSR2:
-        // More
+        // more
     }
 }
 ```
@@ -67,7 +66,6 @@ func handle(s *sigmon.State) {
 func main() {
     sm := sigmon.New(nil)
     sm.Start()
-    // Only SIGKILL can disturb the following until sm.Set is called below.
 
     db := newDataBase(creds)
     db.Migrate()
@@ -80,12 +78,24 @@ func main() {
         case sigmon.SIGHUP:
             app.Restart()
         default:
-            app.Shutdown() // shutdown on all other signals
+            app.Shutdown()
         }
     })
 
-    // Once app.Shutdown is called, app.Wait will stop blocking.
     app.Wait()
+}
+```
+
+### HandlerFunc Using `syscall` Package
+
+```go
+func handle(s *sigmon.State) {
+    switch syscall.Signal(s.Signal()) {
+    case syscall.SIGHUP:
+        // reload
+    default:
+        // stop
+    }
 }
 ```
 

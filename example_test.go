@@ -1,28 +1,28 @@
 package sigmon_test
 
 import (
+	"syscall"
+
 	"github.com/codemodus/sigmon"
 )
 
 func Example() {
 	sm := sigmon.New(nil)
 	sm.Start()
-	// Do things which cannot be affected by OS signals...
+
+	// Do things which cannot be affected by OS signals other than SIGKILL...
 
 	sm.Set(handle)
-	// Do things which can be affected by OS signals...
 
-	sm.Set(nil)
-	// Do more things which cannot be affected by OS signals...
+	// Do things which can be affected by handled OS signals...
 
 	sm.Stop()
 	// OS signals will be handled normally.
 }
 
-func Example_detailed() {
+func Example_elaborated() {
 	sm := sigmon.New(nil)
 	sm.Start()
-	// Only SIGKILL can disturb the following until sm.Set is called below.
 
 	db := newDataBase(creds)
 	db.Migrate()
@@ -35,17 +35,34 @@ func Example_detailed() {
 		case sigmon.SIGHUP:
 			app.Restart()
 		default:
-			app.Shutdown() // shutdown on all other signals
+			app.Shutdown()
 		}
 	})
 
-	// Once app.Shutdown is called, app.Wait will stop blocking.
 	app.Wait()
 }
 
-func handle(*sigmon.State) {}
+func Example_handlerFunc() {
+	handle = func(s *sigmon.State) {
+		switch s.Signal() {
+		case sigmon.SIGHUP:
+			server.Restart()
+		default:
+			server.Shutdown()
+		}
+	}
+}
 
-var creds = ""
+func Example_handlerFuncSyscall() {
+	handle = func(s *sigmon.State) {
+		switch syscall.Signal(s.Signal()) {
+		case syscall.SIGHUP:
+			server.Restart()
+		default:
+			server.Shutdown()
+		}
+	}
+}
 
 type dataBase struct {
 	Migrate func()
@@ -72,3 +89,10 @@ func newWebApp(db *dataBase) *webApp {
 		Wait:           func() {},
 	}
 }
+
+var (
+	creds  = ""
+	server = newWebApp(nil)
+
+	handle sigmon.HandlerFunc = func(*sigmon.State) {}
+)
