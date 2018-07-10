@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"sync/atomic"
 	"syscall"
 	"testing"
 )
@@ -30,9 +31,10 @@ func tSignalMonitorSignalSuppression(t *testing.T) {
 }
 
 func tSignalMonitorConstantRetrieval(t *testing.T) {
-	ct := 0
+	ct := int32(0)
 	f := func(s *State) {
-		ct++
+		atomic.AddInt32(&ct, 1)
+
 		got, want := s.Signal(), SIGINT
 		if got != want {
 			t.Errorf("got %s, want %s", got, want)
@@ -51,7 +53,7 @@ func tSignalMonitorConstantRetrieval(t *testing.T) {
 
 	runtime.Gosched()
 
-	if ct == 0 {
+	if atomic.LoadInt32(&ct) == 0 {
 		t.Errorf("handlerfunc not called")
 	}
 }
@@ -76,8 +78,10 @@ func tSignalMonitorExtraMethodCalls(t *testing.T) {
 
 	runtime.Gosched() // ensure sm loop spins
 
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGINT)
+	c := make(chan os.Signal, 1)
+	defer close(c)
+	signal.Notify(c, syscall.SIGINT)
+	defer signal.Stop(c)
 
 	s := syscall.SIGINT
 	if err := callOSSignal(s); err != nil {
@@ -92,8 +96,8 @@ func tSignalMonitorExtraMethodCalls(t *testing.T) {
 }
 
 func tSignalMonitorSignalHandling(t *testing.T) {
-	ct := -1
-	f := func(*State) { ct++ }
+	ct := int32(-1)
+	f := func(*State) { atomic.AddInt32(&ct, 1) }
 	sm := New(f)
 	sm.Start()
 
@@ -102,8 +106,8 @@ func tSignalMonitorSignalHandling(t *testing.T) {
 			t.Errorf("unexpected error when calling %s: %s", s, err)
 		}
 
-		got := ct
-		want := i
+		got := atomic.LoadInt32(&ct)
+		want := int32(i)
 		if got != want {
 			t.Errorf("got %d, want %d", got, want)
 		}

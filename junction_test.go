@@ -7,7 +7,6 @@ import (
 	"os/signal"
 	"syscall"
 	"testing"
-	"time"
 )
 
 func TestJunction(t *testing.T) {
@@ -35,7 +34,9 @@ func tJunctionConnectDisconnectSignals(t *testing.T) {
 
 	s := syscall.SIGHUP
 	c := make(chan os.Signal, 1)
+	defer close(c)
 	signal.Notify(c, s)
+	defer signal.Stop(c)
 
 	if err := callOSSignal(s); err != nil {
 		t.Errorf("unexpected error when calling %s: %s", s, err)
@@ -76,10 +77,23 @@ func callOSSignal(s syscall.Signal) error {
 }
 
 func isPickingUp(c chan Signal, ct int) bool {
+	delayedChan := func() chan struct{} {
+		dc := make(chan struct{}, 1)
+
+		go func() {
+			for i := 1 << 23; i > 0; i-- {
+			}
+			dc <- struct{}{}
+			defer close(dc)
+		}()
+
+		return dc
+	}
+
 	for i := 0; i < ct; i++ {
 		select {
 		case <-c:
-		case <-time.After(time.Microsecond * 100):
+		case <-delayedChan():
 			return false
 		}
 	}
