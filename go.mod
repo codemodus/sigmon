@@ -1,1 +1,1 @@
-module github.com/codemodus/sigmon
+module github.com/codemodus/sigmon/v2
