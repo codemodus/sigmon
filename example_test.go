@@ -3,7 +3,7 @@ package sigmon_test
 import (
 	"syscall"
 
-	"github.com/codemodus/sigmon"
+	"github.com/codemodus/sigmon/v2"
 )
 
 func Example() {

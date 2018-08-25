@@ -27,7 +27,7 @@ type State
 
 ```go
 import (
-    "github.com/codemodus/sigmon"
+    "github.com/codemodus/sigmon/v2"
 )
 
 func main() {
